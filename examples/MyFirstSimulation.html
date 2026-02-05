@@ -1,0 +1,70 @@
+<!-- Page setup and title -->
+<!DOCTYPE html>
+<html lang="en">
+<head><meta http-equiv="Content-Type" content="text/html;
+charset=UTF-8">
+<title>My first simulation</title>
+<style type="text/css"> 
+body{
+    font-family: "HelveticaNeue-Light", sans-serif; padding : 15px;
+}
+</style>
+
+<!-- Sourcing the cpm build -->
+<script src="./Build/artistoo.js"></script>
+<script src="./fpsmeter.min.js"></script>
+<script>
+"use strict"
+
+let config = {              //object parsed to CPM class (config = constructor of calass Simulation)
+    // Grid settings
+	ndim : 2,               //number of dimension
+	field_size : [100, 100],   //number of pixels in each dimension
+	
+    //CPM parameters and configuration
+    conf : {
+        T : 20,             // temperature CPM model
+        seed : 1,
+        torus : [true, true],
+
+        // Adhesion parameters:
+        J: [[0,20], [20, 100]],
+
+        // Volume constraint parameters:
+        LAMBDA_V : [0, 50],  // VolumeConstraint importance per cellkind
+        V : [0, 500]        // Target volume for each cellkind
+
+	},
+
+    // Simulation setup and configuration
+	simsettings : {         
+        NRCELLS : [1],      //Number of cells to seed for all non-background cells
+        RUNTIME : 500,      //node only
+        RUNTIME_BROWSER : "Inf",
+        CANVASCOLOR : "eaecef", //background color
+        zoom : 4            //zoom in on canvas
+	}
+}
+
+let sim, meter
+function initialize(){
+    sim = new CPM.Simulation(config)                 //initialize CPM simulation
+    meter = new FPSMeter({left:"auto", right:"5px"}) // intitialize FPS meter
+	step()
+}
+function step(){
+    sim.step()
+    meter.tick()
+    if(sim.conf["RUNTIME_BROWSER"]  == "Inf" | sim.time+1 <sim.conf["RUNTIME_BROWSER"]){
+        requestAnimationFrame(step)
+    }
+}
+
+</script>
+</head>
+<body onload="initialize()">
+<h1>My first simulation</h1>
+<p>Hello World!
+</p>
+</body>
+</html>

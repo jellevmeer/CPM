@@ -1,0 +1,128 @@
+<!-- Page setup and title -->
+<!DOCTYPE html>
+<html lang="en">
+<head><meta http-equiv="Content-Type" content="text/html;
+charset=UTF-8">
+<title>Sim Config</title>
+<style type="text/css"> 
+body{
+    font-family: "HelveticaNeue-Light", sans-serif; padding : 15px;
+}
+</style>
+
+<!-- Sourcing the cpm build -->
+<script src="./Build/artistoo.js"></script>
+<script src="./fpsmeter.min.js"></script>
+<script>
+"use strict"
+let config = {
+
+	// Grid settings
+	ndim : 2,
+	field_size : [200, 20],
+	
+	// CPM parameters and configuration
+	conf : {
+		T : 20,			// CPM temperature
+        torus : [true,false],
+        seed: 2,
+				
+		// Adhesion parameters:
+		J: [[0,20], [20,30]] ,
+		
+		// VolumeConstraint parameters
+		LAMBDA_V : [0,50],	// VolumeConstraint importance per cellkind
+		V : [0,152],		// Target volume of each cellkind
+
+        // PerimeterConstraint parameters
+		LAMBDA_P : [0,2],					// PerimeterConstraint importance per cellkind
+		P : [0,145], 						// Target perimeter of each cellkind
+        
+        // Activity constraint parameters:
+        MAX_ACT : [0, 50],
+        LAMBDA_ACT : [0, 100],
+        ACT_MEAN : "geometric"
+	},
+	
+	// Simulation setup and configuration
+	simsettings : {
+		// Cells on the grid
+		NRCELLS : [3],		// Number of cells to seed for all
+					// non-background cellkinds.
+		RUNTIME : 500,                // Only used in node
+        RUNTIME_BROWSER : "Inf",
+        ACTCOLOR : [true],
+        SHOWBORDERS : [true],
+        BORDERCOL : ['FF0000'],
+		CANVASCOLOR : "eaecef",
+		zoom : 4		// zoom in on canvas with this factor.
+	}
+}
+
+let sim, meter
+function initialize(){
+    let custommethods = {                           //define object custommethods, contains key : value [Replace initializeGrid by initializeGrid, see new function]
+         initializeGrid : initializeGrid, 
+         buildChannel : buildChannel,
+         drawBelow : drawBelow        
+    }
+    sim = new CPM.Simulation(config, custommethods)                 //initialize CPM simulation + add custommethods to override old method
+
+	meter = new FPSMeter({left:"auto", right:"5px"})
+	step()
+}
+
+
+function step(){
+    sim.step()
+    meter.tick()
+    requestAnimationFrame( step )
+}
+
+function initializeGrid(){
+	
+		// add the initializer if not already there
+		if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
+	
+		let nrcells = this.conf["NRCELLS"], cellkind, i
+		this.buildChannel()
+		
+		// Seed the right number of cells for each cellkind
+		for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+			
+			for( i = 0; i < nrcells[cellkind]; i++ ){
+				// first cell always at the midpoint. Any other cells
+				// randomly.				
+				if( i == 0 ){
+					this.gm.seedCellAt( cellkind+1, this.C.midpoint )
+				} else {
+					this.gm.seedCell( cellkind+1 )
+				}
+			}
+		}
+}
+	
+function buildChannel(){
+
+		this.channelvoxels = this.gm.makePlane([], 1, 0)          // makePlane(dim: number, coordinateValue: number, pixels: ArrayCoordinate[]), so: plane in x-axis, 
+		let gridheight = this.C.extents[1]
+		this.channelvoxels = this.gm.makePlane( this.channelvoxels, 1, gridheight-1 )
+		
+		this.C.add( new CPM.BorderConstraint({                      //add borderconstraint hamiltonian
+			BARRIER_VOXELS : this.channelvoxels
+		}) )
+		
+}
+
+function drawBelow(){
+	this.Cim.drawPixelSet( this.channelvoxels, "AAAAAA" ) 
+}
+
+</script>
+</head>
+<body onload="initialize()">
+<h1>My First Simulation</h1>
+<p>Testing adhesion perimeter volume
+</p>
+</body>
+</html>

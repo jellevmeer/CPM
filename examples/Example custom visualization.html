@@ -1,0 +1,145 @@
+<!-- Page setup and title -->
+<!DOCTYPE html>
+<html lang="en">
+<head><meta http-equiv="Content-Type" content="text/html;
+charset=UTF-8">
+<title>Custom visualization directionality</title>
+<style type="text/css"> 
+body{
+    font-family: "HelveticaNeue-Light", sans-serif; padding : 15px;
+}
+</style>
+
+<!-- Sourcing the cpm build -->
+<script src="./Build/artistoo.js"></script>
+<script src="./fpsmeter.min.js"></script>
+<script>
+"use strict"
+
+let config = {
+
+	// Grid settings
+	ndim : 2,
+	field_size : [150,150],
+	
+	// CPM parameters and configuration
+	conf : {
+		T : 20,			// CPM temperature
+        seed : 2,
+        torus : [true, true],
+				
+		// Adhesion parameters:
+		J: [[0,20,20], [20,20,20], [20,20,20]],
+		
+		// VolumeConstraint parameters
+		LAMBDA_V : [0,50,50],	// VolumeConstraint importance per cellkind
+		V : [0,500,200],		// Target volume of each cellkind
+
+        // PerimeterConstraint parameters
+		LAMBDA_P : [0,2,2],					// PerimeterConstraint importance per cellkind
+		P : [0,280,160] 						// Target perimeter of each cellkind
+	},
+	
+	// Simulation setup and configuration
+	simsettings : {
+		// Cells on the grid
+		NRCELLS : [10, 10],		// Number of cells to seed for all
+					// non-background cellkinds.
+		RUNTIME : 500,                // Only used in node
+        BURNIN : 0,
+		CANVASCOLOR : "eaecef",
+        RUNTIME_BROWSER : "Inf",
+        ACTCOLOR : [false, false],
+        SHOWBORDERS : [true, true],
+        CELLCOLOR : ['FF0000', '0000FF'],
+		zoom : 4		// zoom in on canvas with this factor.
+	}
+}
+
+let sim, meter
+function initialize() {
+    let custommethods = {                           //define object custommethods, contains key : value [Replace initializeGrid by initializeGrid, see new function]
+         drawCanvas : drawCanvas          
+    }
+    sim = new CPM.Simulation(config, custommethods)                 //initialize CPM simulation + add custommethods to override old method
+
+    let pconstraint = new CPM.PersistenceConstraint( {        
+	LAMBDA_DIR : [0, 100, 100],
+	PERSIST: [0, 0.7, 0.2]	
+    } ) 
+    sim.C.add (pconstraint)                              //adding constraint to the CPM
+
+	meter = new FPSMeter({left:"auto", right:"5px"})
+	step()
+}
+
+function step() {
+    sim.step()
+    meter.tick()
+    if(sim.conf["RUNTIME_BROWSER"]  == "Inf" | sim.time+1 <sim.conf["RUNTIME_BROWSER"]){
+        requestAnimationFrame(step)
+    }
+}
+
+function drawCanvas(){
+	
+	// This part is the normal drawing function
+	
+		// Add the canvas if required
+		if( !this.helpClasses["canvas"] ){ this.addCanvas() }
+	
+		// Clear canvas and draw stroma border
+		this.Cim.clear( this.conf["CANVASCOLOR"] )                  //this.Cim is already used for addCanvas - this.Cim = new Canvas( this.C, this.conf )
+                                                                    // add canvas color back in from config.['CANVASCOLOR'] ~located at config.simsettings
+		
+		// Draw each cellkind appropriately
+		let cellcolor=this.conf["CELLCOLOR"], actcolor=this.conf["ACTCOLOR"], 
+			nrcells=this.conf["NRCELLS"], cellkind, cellborders = this.conf["SHOWBORDERS"]
+		for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		
+			// draw the cells of each kind in the right color
+			if( cellcolor[ cellkind ] != -1 ){
+				this.Cim.drawCells( cellkind+1, cellcolor[cellkind] )	//cellkind + 1 is used, since cellkind = 0 (1st for loop run) is the background
+			}															//cellcolor[cellkind] does not need +1, since background col is not defined in this.conf['CELLCOLOR']
+			
+			// Draw borders if required
+			if(  cellborders[ cellkind  ]  ){							//this if only works when this.conf['SHOWBORDERS'] : ['true']
+				this.Cim.drawCellBorders( cellkind+1, "000000" )
+			}
+		}
+		
+	// This part is for drawing the preferred directions 
+	let pdc = this.C.getConstraint( "PersistenceConstraint" )
+		let ctx = this.Cim.context(), zoom = this.conf["zoom"]					//.context = return the current drawing context
+		let prefdir = ( pdc.conf["LAMBDA_DIR"][ cellkind+1 ] > 0  ) || false	//
+		ctx.beginPath()															//beginPath = initialize a new path, used for canvas drawing 
+		ctx.lineWidth = 2*zoom
+
+		for( let i of this.C.cellIDs() ){
+		
+			// Only draw for cells that have a preferred direction.
+			//if( i == 0 ) continue
+			prefdir = ( pdc.conf["LAMBDA_DIR"][ this.C.cellKind( i ) ] > 0  ) || false
+			if( !prefdir ) continue												//!prefdir means prefdir : ['false'] for that cellKind
+			
+			ctx.moveTo(															//move to this pixel on the screen 
+				pdc.cellcentroidlists[i][0][0]*zoom,							//cellcentroidlist = Cache centroids over the previous conf.DELTA_T MCS to determine directions.
+				pdc.cellcentroidlists[i][0][1]*zoom,
+		       	)
+			ctx.lineTo( (pdc.cellcentroidlists[i][0][0]+.1*pdc.celldirections[i][0])*zoom,	//draw a line from cell centroid to here (0.1* celldirection)
+				(pdc.cellcentroidlists[i][0][1]+.1*pdc.celldirections[i][1])*zoom,
+		       	)
+		}
+		ctx.stroke()																//Drawing the actual path (line)
+}
+
+
+
+</script>
+</head>
+<body onload="initialize()">
+<h1>Visualization example 2</h1>
+<p>drawCanvas function is modified
+</p>
+</body>
+</html>
