@@ -16,10 +16,14 @@ td {
 </style>
 
 
-<script src="./Build/artistoo.js"></script>
+<script src="./artistoo.js"></script>
 <script src="./fpsmeter.min.js"></script>
+
+<script> src = "../src/cells/Cell.js"</script>
+<script> src="../src/models/CPMEvol.js"</script>
 <script>
 "use strict"
+
 
 
 /*	----------------------------------
@@ -30,7 +34,7 @@ let config = {
 
 	// Grid settings
 	ndim : 2,
-	field_size : [150,150],
+	field_size : [250,250],
 	
 	// CPM parameters and configuration
 	conf : {
@@ -39,21 +43,23 @@ let config = {
 		seed : 2,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
+		// Defining CELLS loads CPMEvol instead of CPM
+		//CELLS : ["empty", Blastomeres],
+		
 		// Constraint parameters. 
 		// Mostly these have the format of an array in which each element specifies the
 		// parameter value for one of the cellkinds on the grid.
 		// First value is always cellkind 0 (the background) and is often not used.
-
 		
 		// Adhesion parameters:
 		J : [ 
-		 	[0, 20],                     // Background cell
-            [20, 100]                   // Zygote 
+		 	[0, 20],                    // Background cell
+            [20, 30]                   // Zygote 
 		],
 		
 		// VolumeConstraint parameters
 		LAMBDA_V : [0,50],				// VolumeConstraint importance per cellkind
-		V : [0,352],					// Target volume of each cellkind
+		V : [0,1000],					// Target volume of each cellkind
 
 		// PerimeterConstraint parameters
 		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
@@ -65,9 +71,7 @@ let config = {
 	simsettings : {
 	
 		// Cells on the grid
-		NRCELLS : [0],						// Number of cells to seed for all
-		// non-background cellkinds.
-		// Runtime etc
+		NRCELLS : [1],						// Number of cells to seed for all non-background cellkinds.
 		BURNIN : 100,
 		RUNTIME : 1000,
 		RUNTIME_BROWSER : "Inf",
@@ -87,8 +91,8 @@ let config = {
 		EXPNAME : "CellDivision",					// Used for the filename of output images.
 		
 		// Output stats etc
-		STATSOUT : { browser: false, node: true }, // Should stats be computed?
-		LOGRATE : 10							// Output stats every <LOGRATE> MCS.
+		STATSOUT : { browser: true, node: true }, // Should stats be computed?
+		LOGRATE : 1000							// Output stats every <LOGRATE> MCS.
 
 	}
 }
@@ -97,20 +101,29 @@ let sim, meter
 
 
 function initialize(){
-	 /* 	The following functions are defined below and will be added to
+	 /* The following functions are defined below and will be added to
 	 	the simulation object. If Custom-methods above is set to false,
 	 	this object is ignored and not used in the html/node files. */
 	 let custommethods = {
 	 	postMCSListener : postMCSListener,
         zygoteDivision : zygoteDivision,
 	 	initializeGrid : initializeGrid,
+		divideCell : divideCell,
 	 }
 	sim = new CPM.Simulation( config, custommethods )
+
+	/*sim.C.add(CPM.Cell)*/
 
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
 }
 
+
+
+
+/* or
+sim.C.add(CPM.Divider)
+*/
 
 function step(){
 	sim.step()
@@ -121,10 +134,11 @@ function step(){
 }
 
 function initializeGrid(){
-
+	// add the initializer if not already there
+	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 
 	// Seed 1 Zygote at middle of the simulation
-	this.gm.seedCellAt( 1, [this.C.extents[0]/2, this.C.extents[1]/2] )                 //seedCellAt = (cellkind, [x,y])
+	this.gm.seedCellAt( 1, [this.C.extents[0]/2, this.C.extents[1]/2] )              //seedCellAt = (cellkind, [x,y])
 }
 
 
@@ -133,33 +147,149 @@ function postMCSListener(){
     this.zygoteDivision()
 }	
 
-function zygoteDivision (){
-    // add the initializer if not already there
+function zygoteDivision (){	
+	// add the initializer if not already there
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 	
-	
+	// Adding a counter for total number of cells to limit cell divisions
+	let current_cells = 0, lastnewdiv
 	for( let i of this.C.cellIDs() ){
-        if (this.C.cellKind(i) == 1){		// no longer necessary, unless adding in alternative cell types?
+		if( this.C.cellKind( i ) == 1 ){		// Check if the cell is a zygote
+			current_cells++
+		}
+	}
 
-        // Loop over all the cells and let them proliferate with some probability, 
-		// but only if their volume is at least 95% of their target volume
-            if( this.C.getVolume(i) > this.C.conf.V[2]*0.95 && this.C.random() < 0.1 ){
-                this.gm.divideCell(i)
-                this.C.stat_values = {}
+	// Loop over all the cells and let them proliferate with some probability, 
+	// but only if their volume is at least 95% of their target volume and the max number of cells has not been reached
+	for( let i of this.C.cellIDs() ){
+        if (this.C.cellKind(i) == 1){		
+
+            if( this.C.getVolume(i) > this.C.getConstraint("VolumeConstraint").conf["V"][1]*0.95 && 
+			this.C.random() < 0.01 && current_cells < 16){
+                lastnewdiv = this.gm.divideCell(i)		
+				 
+				let vol = this.C.getConstraint("VolumeConstraint").conf["V"][1] //index for volume for cellkind 2
+				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) // log new daughter cell ID and the Cell type
+				
+
+
+
+				/*
+				parent  = birth(i)
+				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv), "\t",  parent)
+				vol = this.C.getConstraint("VolumeConstraint").conf["V"][lastnewdiv]  
+*/				
             }
 	    }
     }
 }
 
 
+function divideCell(id){
+	// Standard CPM function, modified to include...
+		let C = this.C
+		let torus = C.conf.torus.indexOf(true) >= 0
+		if( C.ndim != 2 || torus ){
+			throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
+		}
+		let cp = C.getStat( PixelsByCell )[id], com = C.getStat( Centroids )[id]
+		let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
+ 
+		// Loop over the pixels belonging to this cell
+		for( let j = 0 ; j < cp.length ; j ++ ){
+			cx = cp[j][0] - com[0] // x position rel to centroid
+			cy = cp[j][1] - com[1] // y position rel to centroid
+ 
+			// sum of squared distances:
+			bxx += cx*cx
+			bxy += cx*cy
+			byy += cy*cy
+		}
+ 
+		// This code computes a "dividing line", which is perpendicular to the longest
+		// axis of the cell.
+		if( bxy == 0 ){
+			x0 = 0
+			y0 = 0
+			x1 = 1
+			y1 = 0
+		} else {
+			T = bxx + byy
+			D = bxx*byy - bxy*bxy
+			//L1 = T/2 + Math.sqrt(T*T/4 - D)
+			L2 = T/2 - Math.sqrt(T*T/4 - D)
+			x0 = 0
+			y0 = 0
+			x1 = L2 - byy
+			y1 = bxy
+		}
+		// console.log( id )
+		// create a new ID for the second cell
+		
+		let nid = C.makeNewCellID( C.cellKind( id ))
+		if (C.hasOwnProperty("cells")){			//check if cells class is used
+			C.birth( nid, id )					//birth function from CPMEvol class extention
+		}
+		
+		// Loop over the pixels belonging to this cell
+		//let sidea = 0, sideb = 0
+		//let pix_id = []
+		//let pix_nid = []
+		//let sidea = 0, sideb=0
+ 
+		for( let j = 0 ; j < cp.length ; j ++ ){
+			// coordinates of current cell relative to center of mass
+			x2 = cp[j][0]-com[0]
+			y2 = cp[j][1]-com[1]
+ 
+			// Depending on which side of the dividing line this pixel is,
+			// set it to the new type
+			side = (x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0)
+			if( side > 0 ){
+				//sidea++
+				C.setpix( cp[j], nid ) 
+				// console.log( cp[j] + " " + C.cellKind( id ) )
+				//pix_nid.push( cp[j] )
+			} else {
+				//pix_id.push( cp[j] )
+				//sideb++
+ 
+			}
+		}
+		//console.log( "3 " + C.cellKind( id ) )
+		//cp[id] = pix_id
+		//cp[nid] = pix_nid
+		C.stat_values = {} // remove cached stats or this will crash!!!
+		return nid
+	}
+
+/*
+function volume(){
+	this.C.getConstraint("VolumeConstraint").conf["V"][i]
+}
+*/
+
+
+
+
+/*
+function makeNewCellID ( kind ){
+		const newid = ++ this.last_cell_id
+		this.C.conf["V"][1]  =  (this.cellvolume[last_cell_id]/2)
+		this.setCellKind( newid, kind )
+		return newid
+	}
+ 	
+this.C.getConstraint("VolumeConstraint").conf["V"][1] 
+ */
 
 </script>
 </head>
 <body onload="initialize()">
  
- <h1>Cell Division</h1>
- <p>A CPM containing epithelial cells and 1 zygote
- <br>A modified logStats function returns the total number of cells with the same id.
+ <h1>CPM Zygote Cleavage</h1>
+ <p>A CPM containing a zygote undergoing cleavage divisions
+ <br>Test
  </p>
 </body>
 </html>
