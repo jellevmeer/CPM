@@ -24,6 +24,41 @@ td {
 <script>
 "use strict"
 
+/*	----------------------------------
+	CELL CLASSES
+	----------------------------------
+*/
+class Blastomeres extends CPM.Cell {
+
+	/** The constructor of class SuperCell.
+	 * @param {object} conf - configuration settings of the simulation, containing the
+	 * relevant parameters. Note: this should include all constraint parameters.
+	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
+	 * when parameters are not explicitly overwritten
+	 * @param {CellId} id - the CellId of this cell (its key in the CPM.cells), unique identifier
+	 *  @param {CPMEvol} C - the CPM - used among others to draw random numbers
+	 * */
+	constructor (conf, kind, id, C) {
+		super(conf, kind, id, C)
+
+		/** encode cell-specific target volume for a simple growth algorithm such that the V can be halved after division
+		 * @type{Number}
+		*/
+		this.V = this.conf["V"][kind]
+	}
+
+	/**
+	 *  Halves target volume as post-division volume pressure can lead to artefacts
+	 * (with supercells specifically, the supercell can kill subcells through volume pressure if this is left out)
+	 * @param {Cell} parent - the parent (or other daughter) cell
+	 */ 
+	birth(parent){
+		super.birth(parent)
+		this.V /= 2
+		parent.V /=2
+	}
+}
+
 
 
 /*	----------------------------------
@@ -44,7 +79,7 @@ let config = {
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
-		//CELLS : ["empty", Blastomeres],
+		CELLS : ["empty", Blastomeres],
 		
 		// Constraint parameters. 
 		// Mostly these have the format of an array in which each element specifies the
