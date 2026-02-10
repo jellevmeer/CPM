@@ -28,6 +28,8 @@ td {
 	CELL CLASSES
 	----------------------------------
 */
+
+
 class Blastomeres extends CPM.Cell {
 
 	/** The constructor of class SuperCell.
@@ -45,20 +47,33 @@ class Blastomeres extends CPM.Cell {
 		 * @type{Number}
 		*/
 		this.V = this.conf["V"][kind]
+
+		/** encode cell-specific cell division counter 
+		 * @type{Number}
+		*/
+		this.nDiv = 0
+
+		/** holds the ids of the parent cells, all seeded cells have parent -1 
+		*  @type{Array}
+		*/
+		this.parentId = [-1]
+
 	}
 
 	/**
-	 *  Halves target volume as post-division volume pressure can lead to artefacts
-	 * (with supercells specifically, the supercell can kill subcells through volume pressure if this is left out)
+	 *  Halves target volume and adds parent cell id to this.parentId to track cell lineages
 	 * @param {Cell} parent - the parent (or other daughter) cell
 	 */ 
 	birth(parent){
 		super.birth(parent)
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+
 		this.V /= 2
 		parent.V /=2
 	}
-}
 
+}
 
 
 /*	----------------------------------
@@ -127,7 +142,7 @@ let config = {
 		
 		// Output stats etc
 		STATSOUT : { browser: true, node: true }, // Should stats be computed?
-		LOGRATE : 1000							// Output stats every <LOGRATE> MCS.
+		LOGRATE : 10000							// Output stats every <LOGRATE> MCS.
 
 	}
 }
@@ -189,28 +204,35 @@ function zygoteDivision (){
 	// Adding a counter for total number of cells to limit cell divisions
 	let current_cells = 0, lastnewdiv
 	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind( i ) == 1 ){		// Check if the cell is a zygote
+		if( this.C.cellKind( i ) == 1 ){		// Check if the cell is a blastomere
 			current_cells++
 		}
 	}
 
 	// Loop over all the cells and let them proliferate with some probability, 
-	// but only if their volume is at least 95% of their target volume and the max number of cells has not been reached
+	// but only if their volume is at least 95% of their target volume - currently not implemented
+	// and the max number of cells has not been reached
+
 	for( let i of this.C.cellIDs() ){
-        if (this.C.cellKind(i) == 1){		
+        if (this.C.cellKind(i) == 1){
 
-            if( this.C.getVolume(i) > this.C.getConstraint("VolumeConstraint").conf["V"][1]*0.95 && 
+
+// To do:
+// Add random contraction start 8-16 cells
+
+            if( 
 			this.C.random() < 0.01 && current_cells < 16){
-                lastnewdiv = this.gm.divideCell(i)		
+                lastnewdiv = this.gm.divideCell(i)
+				this.C.cells[i].nDiv ++
+						
 				 
-				let vol = this.C.getConstraint("VolumeConstraint").conf["V"][1] //index for volume for cellkind 2
-				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) // log new daughter cell ID and the Cell type
-				
-
-
+				// Console log for MSC, cellID, cellKind, Volum
+				let vol = this.C.getVolume(lastnewdiv) 
+				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) 
 
 				/*
 				parent  = birth(i)
+				this.C.getVolume(i) > this.C.getConstraint("VolumeConstraint").conf["V"][1]*0.95 && 
 				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv), "\t",  parent)
 				vol = this.C.getConstraint("VolumeConstraint").conf["V"][lastnewdiv]  
 */				
