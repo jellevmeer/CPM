@@ -53,6 +53,7 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.nDiv = 0
 
+
 		/** holds the ids of the parent cells, all seeded cells have parent -1 
 		*  @type{Array}
 		*/
@@ -64,13 +65,16 @@ class Blastomeres extends CPM.Cell {
 	 *  Halves target volume and adds parent cell id to this.parentId to track cell lineages
 	 * @param {Cell} parent - the parent (or other daughter) cell
 	 */ 
+
+
 	birth(parent){
 		super.birth(parent)
 		this.parentId = parent.parentId.slice()
 		this.parentId.push(parent.id)
 
-		this.V /= 2
-		parent.V /=2
+		let V = parent.V
+		this.V = V / 2
+		parent.V = V / 2 
 	}
 
 }
@@ -109,7 +113,7 @@ let config = {
 		
 		// VolumeConstraint parameters
 		LAMBDA_V : [0,50],				// VolumeConstraint importance per cellkind
-		V : [0,1000],					// Target volume of each cellkind
+		V : [0,5000],					// Target volume of each cellkind
 
 		// PerimeterConstraint parameters
 		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
@@ -202,48 +206,40 @@ function zygoteDivision (){
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 	
 	// Adding a counter for total number of cells to limit cell divisions
-	let current_cells = 0, lastnewdiv
+	let total_cells = 0, lastnewdiv
 	for( let i of this.C.cellIDs() ){
 		if( this.C.cellKind( i ) == 1 ){		// Check if the cell is a blastomere
-			current_cells++
+			total_cells++
 		}
 	}
 
 	// Loop over all the cells and let them proliferate with some probability, 
-	// but only if their volume is at least 95% of their target volume - currently not implemented
-	// and the max number of cells has not been reached
+	// only if the max number of cells has not been reached
 
 	for( let i of this.C.cellIDs() ){
         if (this.C.cellKind(i) == 1){
 
-
 // To do:
 // Add random contraction start 8-16 cells
 
-            if( 
-			this.C.random() < 0.01 && current_cells < 16){
+            if(this.C.random() < 0.01 && total_cells < 16){
                 lastnewdiv = this.gm.divideCell(i)
 				this.C.cells[i].nDiv ++
+				this.C.cells[lastnewdiv].nDiv ++
 						
-				 
-				// Console log for MSC, cellID, cellKind, Volum
-				let vol = this.C.getVolume(lastnewdiv) 
-				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) 
+				// Console log for time, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
+				console.log(sim.time + "\t"+  i + "\t" + sim.C.cells[i].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
 
-				/*
-				parent  = birth(i)
-				this.C.getVolume(i) > this.C.getConstraint("VolumeConstraint").conf["V"][1]*0.95 && 
-				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv), "\t",  parent)
-				vol = this.C.getConstraint("VolumeConstraint").conf["V"][lastnewdiv]  
-*/				
+				/* let vol = this.C.getVolume(lastnewdiv) 
+				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) */
+				
             }
 	    }
     }
 }
 
-
 function divideCell(id){
-	// Standard CPM function, modified to include...
+	// Standard CPM function, non-modified
 		let C = this.C
 		let torus = C.conf.torus.indexOf(true) >= 0
 		if( C.ndim != 2 || torus ){
@@ -320,25 +316,6 @@ function divideCell(id){
 		return nid
 	}
 
-/*
-function volume(){
-	this.C.getConstraint("VolumeConstraint").conf["V"][i]
-}
-*/
-
-
-
-
-/*
-function makeNewCellID ( kind ){
-		const newid = ++ this.last_cell_id
-		this.C.conf["V"][1]  =  (this.cellvolume[last_cell_id]/2)
-		this.setCellKind( newid, kind )
-		return newid
-	}
- 	
-this.C.getConstraint("VolumeConstraint").conf["V"][1] 
- */
 
 </script>
 </head>
