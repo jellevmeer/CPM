@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<title>CellDivision</title>
+<title>CPM Zygote Division</title>
 <style type="text/css">
 body{
 		font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue",
@@ -166,18 +166,10 @@ function initialize(){
 	 }
 	sim = new CPM.Simulation( config, custommethods )
 
-	/*sim.C.add(CPM.Cell)*/
-
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
 }
 
-
-
-
-/* or
-sim.C.add(CPM.Divider)
-*/
 
 function step(){
 	sim.step()
@@ -187,12 +179,13 @@ function step(){
 	}
 }
 
+
 function initializeGrid(){
 	// add the initializer if not already there
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 
 	// Seed 1 Zygote at middle of the simulation
-	this.gm.seedCellAt( 1, [this.C.extents[0]/2, this.C.extents[1]/2] )              //seedCellAt = (cellkind, [x,y])
+	this.gm.seedCellAt( 1, [this.C.extents[0]/2, this.C.extents[1]/2] )   
 }
 
 
@@ -201,41 +194,83 @@ function postMCSListener(){
     this.zygoteDivision()
 }	
 
+// To do:
+// Add random contraction start 8-16 cells
+
 function zygoteDivision (){	
 	// add the initializer if not already there
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 	
+	let total_cells = 0
+	let all_ndivs = [] 
+
 	// Adding a counter for total number of cells to limit cell divisions
-	let total_cells = 0, lastnewdiv
+	// and collecting all nDivs for all cellIDs present on the grid 
 	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind( i ) == 1 ){		// Check if the cell is a blastomere
+		if( this.C.cellKind( i ) == 1 ){		
 			total_cells++
+			all_ndivs.push(this.C.cells[i].nDiv)
+
 		}
 	}
 
 	// Loop over all the cells and let them proliferate with some probability, 
 	// only if the max number of cells has not been reached
 
+// if (this.C.random() < 0.01){
+// }
+
+	let lowest_nDiv = all_ndivs[0]
+
+	// Select lowest nDiv value present in all cells
+	for(let i of all_ndivs){
+		if (i < lowest_nDiv){
+				lowest_nDiv = i
+		} 
+	}
+
+	let largest_cells = [] 
+
+	// construct an array with cellIDs containing the lowest nDiv
 	for( let i of this.C.cellIDs() ){
         if (this.C.cellKind(i) == 1){
+			if (this.C.cells[i].nDiv == lowest_nDiv){
+				largest_cells.push(i)
+			}
 
-// To do:
-// Add random contraction start 8-16 cells
+		}	
+	}
 
-            if(this.C.random() < 0.01 && total_cells < 16){
-                lastnewdiv = this.gm.divideCell(i)
-				this.C.cells[i].nDiv ++
-				this.C.cells[lastnewdiv].nDiv ++
-						
-				// Console log for time, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
-				console.log(sim.time + "\t"+  i + "\t" + sim.C.cells[i].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
+	let divided_cells = [], j, lastnewdiv, random_cell 
+	
+	// Dividing function for cells with the lowest nDiv
+	for( let i = 0; i < largest_cells.length; i++ ){
 
-				/* let vol = this.C.getVolume(lastnewdiv) 
-				console.log(this.time + "\t" + lastnewdiv + "\t" + this.C.cellKind(lastnewdiv) + "\t" + vol) */
+		// randomly generate integer j and then select element of largest_cells[j] 
+		j = this.C.ran(0, largest_cells.length - 1)
+		random_cell = largest_cells[j]
+ 
+		/* Visual check random cell + what cell is divided
+		console.log(j)
+		console.log(random_cell + "\t" + "save me")
+		*/
+
+		// Divide every 100 MSC and increase nDiv for cells that have divided up to a predefined total cell nr
+        if(sim.C.time % 100 == 0 && total_cells < 16){
+            lastewdiv = this.gm.divideCell(random_cell)
+			this.C.cells[random_cell].nDiv ++
+			this.C.cells[lastnewdiv].nDiv ++
+			
+			//contains parent cell ids that have divided
+			divided_cells.push(random_cell)
 				
+			largest_cells = largest_cells.splice(j, 1)
+
+			// Console log for time, all divided cells, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
+			console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
+
             }
 	    }
-    }
 }
 
 function divideCell(id){
@@ -315,6 +350,9 @@ function divideCell(id){
 		C.stat_values = {} // remove cached stats or this will crash!!!
 		return nid
 	}
+
+
+
 
 
 </script>
