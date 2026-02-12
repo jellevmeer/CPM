@@ -257,7 +257,7 @@ function zygoteDivision (){
 
 		// Divide every 100 MSC and increase nDiv for cells that have divided up to a predefined total cell nr
         if(sim.C.time % 100 == 0 && total_cells < 16){
-            lastewdiv = this.gm.divideCell(random_cell)
+            lastnewdiv = this.gm.divideCell(random_cell)
 			this.C.cells[random_cell].nDiv ++
 			this.C.cells[lastnewdiv].nDiv ++
 			
