@@ -202,14 +202,14 @@ function zygoteDivision (){
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
 	
 	let total_cells = 0
-	let all_ndivs = [] 
+	let all_volumes = [] 
 
 	// Adding a counter for total number of cells to limit cell divisions
 	// and collecting all nDivs for all cellIDs present on the grid 
 	for( let i of this.C.cellIDs() ){
 		if( this.C.cellKind( i ) == 1 ){		
 			total_cells++
-			all_ndivs.push(this.C.cells[i].nDiv)
+			all_volumes.push(this.C.cells[i].V)
 
 		}
 	}
@@ -220,12 +220,12 @@ function zygoteDivision (){
 // if (this.C.random() < 0.01){
 // }
 
-	let lowest_nDiv = all_ndivs[0]
+	let largest_V = all_volumes[0]
 
 	// Select lowest nDiv value present in all cells
-	for(let i of all_ndivs){
-		if (i < lowest_nDiv){
-				lowest_nDiv = i
+	for(let i of all_volumes){
+		if (i > largest_V){
+			largest_V = i
 		} 
 	}
 
@@ -234,7 +234,7 @@ function zygoteDivision (){
 	// construct an array with cellIDs containing the lowest nDiv
 	for( let i of this.C.cellIDs() ){
         if (this.C.cellKind(i) == 1){
-			if (this.C.cells[i].nDiv == lowest_nDiv){
+			if (this.C.cells[i].V == largest_V){
 				largest_cells.push(i)
 			}
 
@@ -256,7 +256,7 @@ function zygoteDivision (){
 		*/
 
 		// Divide every 100 MSC and increase nDiv for cells that have divided up to a predefined total cell nr
-        if(sim.C.time % 100 == 0 && total_cells < 16){
+        if(sim.C.time % 50 == 0 && total_cells < 16){
             lastnewdiv = this.gm.divideCell(random_cell)
 			this.C.cells[random_cell].nDiv ++
 			this.C.cells[lastnewdiv].nDiv ++
