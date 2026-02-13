@@ -59,6 +59,11 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.parentId = [-1]
 
+		/** holds the ids of the daughter cells originating from this cell 
+		*  @type{Array}
+		*/
+		this.daughterId = []
+
 	}
 
 	/**
@@ -66,15 +71,16 @@ class Blastomeres extends CPM.Cell {
 	 * @param {Cell} parent - the parent (or other daughter) cell
 	 */ 
 
-
 	birth(parent){
 		super.birth(parent)
 		this.parentId = parent.parentId.slice()
 		this.parentId.push(parent.id)
 
+		// Volume of the daughter and the parent cell is halved after division
 		let V = parent.V
 		this.V = V / 2
 		parent.V = V / 2 
+
 	}
 
 }
@@ -108,7 +114,7 @@ let config = {
 		// Adhesion parameters:
 		J : [ 
 		 	[0, 20],                    // Background cell
-            [20, 30]                   // Zygote 
+            [20, 10]                   // Zygote 
 		],
 		
 		// VolumeConstraint parameters
@@ -116,7 +122,7 @@ let config = {
 		V : [0,5000],					// Target volume of each cellkind
 
 		// PerimeterConstraint parameters
-		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
+		LAMBDA_P:[0,1],				    // PerimeterConstraint importance per cellkind
 		P: [0,145] 				        // Target perimeter of each cellkind		
 	},
 	
@@ -189,13 +195,19 @@ function initializeGrid(){
 }
 
 
-/* The following custom methods will be added to the simulation object*/
+/* The following custom methods will be added to the simulation object
+   The zygoteDivision function is only called based on C.random, where random returns a value between 0 and 1*/
 function postMCSListener(){
-    this.zygoteDivision()
+	this.zygoteDivision()
 }	
 
 // To do:
 // Add random contraction start 8-16 cells
+
+// fix divided cells
+	const divided_cells = []
+
+	// add daughterId variable to the CPMEvol
 
 function zygoteDivision (){	
 	// add the initializer if not already there
@@ -217,12 +229,9 @@ function zygoteDivision (){
 	// Loop over all the cells and let them proliferate with some probability, 
 	// only if the max number of cells has not been reached
 
-// if (this.C.random() < 0.01){
-// }
-
 	let largest_V = all_volumes[0]
 
-	// Select lowest nDiv value present in all cells
+	// Select largest volume value present in all cells
 	for(let i of all_volumes){
 		if (i > largest_V){
 			largest_V = i
@@ -231,46 +240,59 @@ function zygoteDivision (){
 
 	let largest_cells = [] 
 
-	// construct an array with cellIDs containing the lowest nDiv
+	// Construct an array with cellIDs containing the largest volume
 	for( let i of this.C.cellIDs() ){
-        if (this.C.cellKind(i) == 1){
-			if (this.C.cells[i].V == largest_V){
+        if ( this.C.cellKind(i) == 1 ){
+			if ( this.C.cells[i].V == largest_V ){
 				largest_cells.push(i)
 			}
-
 		}	
 	}
 
-	let divided_cells = [], j, lastnewdiv, random_cell 
+
+	let max_loop, j, lastnewdiv, random_cell, cellid 
 	
-	// Dividing function for cells with the lowest nDiv
-	for( let i = 0; i < largest_cells.length; i++ ){
+	// Dividing function for cells with the largest volume, the function divides up to a predefined total cell number
+	if( total_cells < 16 ){
 
-		// randomly generate integer j and then select element of largest_cells[j] 
-		j = this.C.ran(0, largest_cells.length - 1)
-		random_cell = largest_cells[j]
- 
-		/* Visual check random cell + what cell is divided
-		console.log(j)
-		console.log(random_cell + "\t" + "save me")
-		*/
+		max_loop = largest_cells.length
 
-		// Divide every 100 MSC and increase nDiv for cells that have divided up to a predefined total cell nr
-        if(sim.C.time % 50 == 0 && total_cells < 16){
-            lastnewdiv = this.gm.divideCell(random_cell)
-			this.C.cells[random_cell].nDiv ++
-			this.C.cells[lastnewdiv].nDiv ++
-			
-			//contains parent cell ids that have divided
-			divided_cells.push(random_cell)
-				
-			largest_cells = largest_cells.splice(j, 1)
+		for( let i = 0; i < max_loop; i++ ){
+			// Randomly generate integer j to select cellId for cell division
+			if ( this.C.random() < 0.005 ){
+				j = this.C.ran(0, max_loop - 1)
+				random_cell = largest_cells[j]
 
-			// Console log for time, all divided cells, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
-			console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
+				// Divide a cell with the highest volume, and increase nDiv for parent and daughter cellId
+				lastnewdiv = this.gm.divideCell(random_cell)
+				this.C.cells[random_cell].nDiv ++
+				this.C.cells[lastnewdiv].nDiv ++
 
-            }
-	    }
+				// Add daughter cellIds to all parent cells
+				for (let i = 1; i < this.C.cells[lastnewdiv].parentId.length; i++){
+					cellid = this.C.cells[lastnewdiv].parentId[i]
+					this.C.cells[cellid].daughterId.push(lastnewdiv) 
+				}
+
+				// Visual check random number, chosen cellId + what cell is divided, and how this changes the largest_cells array
+				console.log(largest_cells + "\t" + "all the big cells")
+				console.log(j)
+				console.log(random_cell + "\t" + "save me")
+
+				// contains all parent cell ids that have divided
+				divided_cells.push(random_cell)
+
+				console.log(divided_cells)
+				console.log(largest_cells + "\t" + "before splicing me, length array is:" + "\t" + largest_cells.length)
+
+				largest_cells.splice(j, 1)
+				console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
+
+				// Console log for time, all divided cellIds, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
+				console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
+			}		
+		}
+	}
 }
 
 function divideCell(id){
