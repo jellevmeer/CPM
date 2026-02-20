@@ -20,7 +20,11 @@ td {
 <script src="./fpsmeter.min.js"></script>
 
 <script> src = "../src/cells/Cell.js"</script>
-<script> src="../src/models/CPMEvol.js"</script>
+
+<script> src ="../src/models/CPMEvol.js"</script>
+
+<script> src = "../src/stats/Stat.js"</script>
+
 <script>
 "use strict"
 
@@ -48,21 +52,30 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.V = this.conf["V"][kind]
 
+		/** encode cell-specific target perimeter for a simple growth algorithm such that the P can be halved after division
+		 * @type{Number}
+		*/
+		this.P = this.conf["P"][kind]
+
+		/** encode cell-specific target J for a simple growth algorithm such that the J can be halved for compaction
+		 * @type{Number}
+		*/
+		//this.J = this.conf["J"][kind]
+
 		/** encode cell-specific cell division counter 
 		 * @type{Number}
 		*/
 		this.nDiv = 0
-
 
 		/** holds the ids of the parent cells, all seeded cells have parent -1 
 		*  @type{Array}
 		*/
 		this.parentId = [-1]
 
-		/** holds the ids of the daughter cells originating from this cell 
+		/** holds the ids of the daughter cells originating from this cell, including daughter cell with the same id as the parent 
 		*  @type{Array}
 		*/
-		this.daughterId = []
+		this.daughterId = [this.id]
 
 	}
 
@@ -81,10 +94,25 @@ class Blastomeres extends CPM.Cell {
 		this.V = V / 2
 		parent.V = V / 2 
 
+		// Perimeter of the daughter and the parent cell is halved after division
+		let P = parent.P
+		this.P = P * 0.70
+		parent.P = P * 0.70
+/*
+		// J of the daughter and the parent cell is changed at 8 cells to model compaction
+		let nr_cells = 0
+		for( let i of this.C.cellIDs() ){
+			if( this.C.cellKind( i ) == 1 ){		
+				nr_cells++
+			}
+		}
+
+		if (nr_cells >= 8) {
+			this.J = [[0,40], [40,5]]
+			parent.J = [[0,40], [40,5]]		
+		}*/
 	}
-
 }
-
 
 /*	----------------------------------
 	CONFIGURATION SETTINGS
@@ -113,8 +141,8 @@ let config = {
 		
 		// Adhesion parameters:
 		J : [ 
-		 	[0, 20],                    // Background cell
-            [20, 10]                   // Zygote 
+		 	[0, 10],                  // Background cell
+            [10, 20]                   // Zygote 
 		],
 		
 		// VolumeConstraint parameters
@@ -122,8 +150,8 @@ let config = {
 		V : [0,5000],					// Target volume of each cellkind
 
 		// PerimeterConstraint parameters
-		LAMBDA_P:[0,1],				    // PerimeterConstraint importance per cellkind
-		P: [0,145] 				        // Target perimeter of each cellkind		
+		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
+		P: [0,800] 				    // Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -147,11 +175,11 @@ let config = {
 		SAVEIMG : false,						// Should a png image of the grid be saved
 		// during the simulation?
 		IMGFRAMERATE : 1,					// If so, do this every <IMGFRAMERATE> MCS.
-		SAVEPATH : "output/img/CellDivision",	// ... And save the image in this folder.
-		EXPNAME : "CellDivision",					// Used for the filename of output images.
+		SAVEPATH : "output/img/ZygoteCellDivision",	// ... And save the image in this folder.
+		EXPNAME : "ZygoteCellDivision",					// Used for the filename of output images.
 		
 		// Output stats etc
-		STATSOUT : { browser: true, node: true }, // Should stats be computed?
+		STATSOUT : { browser: false, node: true }, // Should stats be computed?
 		LOGRATE : 10000							// Output stats every <LOGRATE> MCS.
 
 	}
@@ -169,6 +197,9 @@ function initialize(){
         zygoteDivision : zygoteDivision,
 	 	initializeGrid : initializeGrid,
 		divideCell : divideCell,
+		perimeterCounter : perimeterCounter,
+		compaction : compaction
+		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -199,6 +230,10 @@ function initializeGrid(){
    The zygoteDivision function is only called based on C.random, where random returns a value between 0 and 1*/
 function postMCSListener(){
 	this.zygoteDivision()
+	if (sim.C.time % 100 == 0){
+		this.perimeterCounter()
+	}
+	this.compaction()	
 }	
 
 // To do:
@@ -258,7 +293,8 @@ function zygoteDivision (){
 		max_loop = largest_cells.length
 
 		for( let i = 0; i < max_loop; i++ ){
-			// Randomly generate integer j to select cellId for cell division
+			// Randomly generate integer j to select cellId for cell division, serves as local minimum time interval for division
+			// Includes a max time elapsed parameter 
 			if ( this.C.random() < 0.005 ){
 				j = this.C.ran(0, max_loop - 1)
 				random_cell = largest_cells[j]
@@ -275,18 +311,18 @@ function zygoteDivision (){
 				}
 
 				// Visual check random number, chosen cellId + what cell is divided, and how this changes the largest_cells array
-				console.log(largest_cells + "\t" + "all the big cells")
-				console.log(j)
-				console.log(random_cell + "\t" + "save me")
+				//console.log(largest_cells + "\t" + "all the big cells")
+				//console.log(j)
+				//console.log(random_cell + "\t" + "save me")
 
 				// contains all parent cell ids that have divided
 				divided_cells.push(random_cell)
 
-				console.log(divided_cells)
-				console.log(largest_cells + "\t" + "before splicing me, length array is:" + "\t" + largest_cells.length)
+				//console.log(divided_cells)
+				//console.log(largest_cells + "\t" + "before splicing me, length array is:" + "\t" + largest_cells.length)
 
 				largest_cells.splice(j, 1)
-				console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
+				//console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
 
 				// Console log for time, all divided cellIds, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
 				console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
@@ -294,6 +330,90 @@ function zygoteDivision (){
 		}
 	}
 }
+
+function perimeterCounter(){
+
+	let cellborderpixels = { }
+		
+		// The this.C.cellBorderPixels() iterator returns coordinates and cellid for all 
+		// non-background border pixels on the grid. This function creates an object with a key for each cell on the grid, and as
+		// corresponding value an array with all the borderpixels of that 
+		// cell. Each pixel is stored by its ArrayCoordinate.
+	for( let [arraycoord,id] of this.C.cellBorderPixels() ){
+		if( !cellborderpixels[id] ){
+			cellborderpixels[id] = [arraycoord]
+		} else {
+			cellborderpixels[id].push( arraycoord )
+		}
+	}
+	console.log( "borderpixels")
+
+	console.log(cellborderpixels)
+
+	/** The getNeighborsOfCell method of CellNeighborList computes a list of all pixels
+		that border to "cell" and belong to a different cellid.
+		@param {CellId} cellid the unique cell id of the cell to get neighbors from.
+		@param {CellArrayObject} cellborderpixels object produced by {@link BorderPixelsByCell}, with keys for each cellid
+		and as corresponding value the border pixel indices of their pixels.
+		@returns {CellObject} a dictionairy with keys = neighbor cell ids, and 
+		values = number of neighbor cellpixels at the border.
+	*/
+			
+	let neigh_borderpixels = [], perimeter
+	
+	//loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel to calculate the perimeter of the cell cluster
+	//this assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
+	for (let cellid in cellborderpixels){		
+			let cbp = cellborderpixels[cellid]
+
+			//loop over border pixels of cell
+			for ( let cellpix = 0; cellpix < cbp.length; cellpix++ ) {
+
+				//get neighbouring pixels of borderpixel of cell
+				let neighbours_of_borderpixel_cell = this.C.neigh( cbp[cellpix] )
+
+				//loop over neighbouring pixels and identify cellId belonging to neighbour pixel (ArrayCoordinate)
+				for ( let neighborpix of neighbours_of_borderpixel_cell ) {
+					let neighbor_id = this.C.pixt( neighborpix )
+
+					// Add all unique background pixels to an array with length of the array a proxy for the perimeter.
+					if (neighbor_id == 0) {
+						
+						if( !neigh_borderpixels.includes(neighborpix) ){
+							neigh_borderpixels.push(neighborpix)
+						}
+
+					}
+				}
+			}
+		
+	}
+	perimeter = neigh_borderpixels.length
+	console.log( "neigh borderpixels" + "\t" + perimeter)
+	console.log( neigh_borderpixels )
+
+}	
+
+
+// Change the adhesion perimeters for blastomere cells to mimic compaction, at n = 8 blastomeres
+function compaction(){
+		let nr_cells = 0
+		for( let i of this.C.cellIDs() ){
+			if( this.C.cellKind( i ) == 1 ){		
+				nr_cells++
+			}
+		}
+
+		//Change all J parameters in conf to increase compaction
+		if (nr_cells == 8) {
+			for( let i of this.C.cellIDs() ){
+				if( this.C.cellKind( i ) == 1 ){		
+					this.C.cells[i].conf["J"] = [[0,40], [40,5]]
+				}
+			}
+		}	
+	}
+
 
 function divideCell(id){
 	// Standard CPM function, non-modified
