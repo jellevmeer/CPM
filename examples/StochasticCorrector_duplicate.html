@@ -143,17 +143,6 @@ function step(){
 
 	sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[1]], "2B3618" ) 
 	sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[2]], "652A0E" ) 
-	
-	if(sim.C.time % 50 == 0){
-		console.log(sim.time, sim.C.cells[Object.keys(sim.C.cells)[1]].id,
-					sim.C.cells[Object.keys(sim.C.cells)[1]].parentId,
-					sim.C.getVolume(Object.keys(sim.C.cells)[1]), 
-					sim.C.cells[Object.keys(sim.C.cells)[1]].V,
-					sim.C.cells[Object.keys(sim.C.cells)[2]].id,
-					sim.C.cells[Object.keys(sim.C.cells)[2]].parentId,
-					sim.C.getVolume(Object.keys(sim.C.cells)[2]), 
-					sim.C.cells[Object.keys(sim.C.cells)[2]].V)
-	}
 
 
 	if(sim.C.time % 100 == 0){
