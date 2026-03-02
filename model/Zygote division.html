@@ -168,7 +168,16 @@ let config = {
 	}
 }
 /*	---------------------------------- */
-let sim, meter
+let sim, meter, Cim
+let running = true
+
+// Toggle running function for clicking on the grid
+function toggleAnim(){
+	running = !running
+	if( running ){
+		step()
+	}
+}
 
 
 function initialize(){
@@ -180,12 +189,29 @@ function initialize(){
         zygoteDivision : zygoteDivision,
 	 	initializeGrid : initializeGrid,
 		divideCell : divideCell,
+		drawCanvas : drawCanvas,
 		perimeterCounter : perimeterCounter,
 		compaction : compaction,
-		cell_number : cell_number
+		cell_number : cell_number,
+		toggleAnim : toggleAnim
 		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
+
+	// Check if a canvas is already present, if not add a new canvas
+	// if it is, overwrite the old sim by the new sim
+	if( !Cim ){
+		sim.addCanvas()
+	} else {
+		Cim.sim = sim
+	}
+
+	sim.Cim.el.onclick = toggleAnim
+	running = true
+
+// option to draw lineages based on cellId and their daughterIds
+	sim.trace_cellid = 0
+	sim.drawDaughterColors = false
 
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
@@ -194,10 +220,13 @@ function initialize(){
 let div_time = 0
 
 function step(){
-	sim.step()
-	meter.tick()
-	if( sim.conf["RUNTIME_BROWSER"] == "Inf" | sim.time+1 < sim.conf["RUNTIME_BROWSER"] ){
-		requestAnimationFrame( step )
+	if (running){
+		sim.step()
+		meter.tick()
+
+		if( sim.conf["RUNTIME_BROWSER"] == "Inf" || sim.time+1 < sim.conf["RUNTIME_BROWSER"] ){
+			requestAnimationFrame( step )
+		}	
 	}
 
 	// Adding minimum division time parameter for zygoteDivision()
@@ -213,7 +242,8 @@ function initializeGrid(){
 	this.gm.seedCellAt( 1, [this.C.extents[0]/2, this.C.extents[1]/2] )   
 }
 
-	let old_cells = 0
+
+let old_cells = 0
 
 /* The following custom methods will be added to the simulation object */
 function postMCSListener(){
@@ -221,12 +251,12 @@ function postMCSListener(){
 
 	let cells = this.cell_number()
 
-	// Check the perimeter every 100 MCS and every time a cell has divided
-	if (sim.C.time % 100 == 0 || cells > old_cells){
+	// Check the perimeter every 50 MCS and every time a cell has divided
+	if (sim.C.time % 50 == 0 || cells > old_cells){
 		this.perimeterCounter()
 		old_cells = cells
 	}
-	this.compaction()	
+	this.compaction()
 }	
 
 // To do:
@@ -378,7 +408,7 @@ function perimeterCounter(){
 		}
 	}
 	perimeter = neigh_borderpixels.length
-	console.log( sim.time + "\t" + "The number of background borderpixels making up the perimeter is:" + "\t" + perimeter)
+	//console.log( sim.time + "\t" + "The number of background borderpixels making up the perimeter is:" + "\t" + perimeter)
 }
 
 
@@ -391,7 +421,7 @@ function compaction(){
 	if (nr_cells == 8) {
 		for( let i of this.C.cellIDs() ){
 			if( this.C.cellKind( i ) == 1 ){		
-				this.C.cells[i].conf["J"] = [[0,40], [40,10]]
+				this.C.cells[i].conf["J"] = [[0,80], [80,10]]
 			}
 		}
 	}	
@@ -490,16 +520,87 @@ function divideCell(id){
 	}
 
 
+// Custom drawing function 
+function drawCanvas(){
+	// Add the canvas if required
+	if( !this.helpClasses["canvas"] ){ this.addCanvas() }
+
+	// Clear canvas
+	this.Cim.clear( this.conf["CANVASCOLOR"] || "FFFFFF" )
+	let nrcells=this.conf["NRCELLS"], cellkind, cellborders = this.conf["SHOWBORDERS"]
+	
 
 
+	// Loop over all cell types and colour them + their borders
+	for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		this.Cim.drawCells( cellkind+1, "000000")
+
+		// Specific cell Id visualization  (requires specific cell Id input on Lineage Trace Cell Id <input>)
+		// Error catcher is included for when the cell Id does not yet exist
+		try {	
+			if (sim.C.trace_cellid > 0){
+					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[sim.C.trace_cellid]], "00FF00" ) 
+				}
+		} catch (err){
+			console.log("Cell Id input error")
+		}
+
+		// Daughter cell Id visualization  (requires checkbox on html to be checked)
+		// Error catcher is included for when the cell Id does not yet exist		
+		try {
+			if (sim.drawDaughterColors){
+				let daughters = this.C.cells[sim.C.trace_cellid].daughterId 
+				
+				for (let i of daughters){
+					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "00FF00" ) 
+				}
+			}
+		} catch (err){
+			//console.log("Cell Id does not exist or cannot be visualized")
+		}
+
+		// Draw borders if required
+		if ( cellborders[cellkind] ){
+			this.Cim.drawCellBorders( cellkind+1, "c30101" )
+		}
+	}
+}
+
+
+
+function changeColor(){
+	sim.drawDaughterColors = !sim.drawDaughterColors
+}
 
 </script>
 </head>
 <body onload="initialize()">
  
- <h1>CPM Zygote Cleavage</h1>
- <p>A CPM containing a zygote undergoing cleavage divisions
- <br>Test
- </p>
+<h1>Human Zygote to Blastocyst Development</h1> <hr>
+<p>A CPM containing a zygote undergoing cleavage divisions.
+<br>Compaction occurs when the 8-cell stage is reached.
+</p>
+<p>
+<button onclick="initialize()">Reset</button>
+<button onclick="toggleAnim()">Pause</button></p>
+
+<div class="slidecontainer">
+<form autocomplete="off">
+<table>
+<tr>
+	<td>Lineage Trace Cell Id</td><td>
+	<input type="text" min="1" id="lineage" placeholder="Cell Id"
+	value=0 oninput="sim.C.trace_cellid=parseInt(this.value)">
+	</td>
+</tr>
+
+<tr>
+	<td>Daughter cell visualization</td><td>
+	<input type="checkbox" id="trace_daughter" oninput="changeColor()" switch>
+	</td>
+</tr>
+</table>
+</form>
+</div>
 </body>
 </html>
