@@ -84,13 +84,25 @@ let config = {
 		EXPNAME : "CellDivision",					// Used for the filename of output images.
 		
 		// Output stats etc
-		STATSOUT : { browser: true, node: true }, // Should stats be computed?
+		STATSOUT : { browser: false, node: true }, // Should stats be computed?
 		LOGRATE : 10							// Output stats every <LOGRATE> MCS.
 
 	}
 }
 /*	---------------------------------- */
-let sim, meter
+let sim, meter, Cim
+
+
+let running = true
+
+
+function toggleAnim(){
+	running = !running
+	if( running ){
+		step()
+	}
+}
+
 
 
 function initialize(){
@@ -100,24 +112,40 @@ function initialize(){
 	 let custommethods = {
 	 	postMCSListener : postMCSListener,
 	 	initializeGrid : initializeGrid,
-        logStats : logStats
+        logStats : logStats,
+		drawCanvas : drawCanvas,
+		toggleAnim : toggleAnim
 	 }
 	sim = new CPM.Simulation( config, custommethods )
+	
+	 // Check if a canvas is already present, if not add a new canvas
+	 // if it is, overwrite the old sim by the new sim
+	if( !Cim ){
+		//let Cim = new CPM.Canvas( sim, config.conf )
+		sim.addCanvas()
+	} else {
+		Cim.sim = sim
+	}
 
+	sim.Cim.el.onclick = toggleAnim
 
+	running = true
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
 }
 
 
 function step(){
-	sim.step()
-	meter.tick()
-	if( sim.conf["RUNTIME_BROWSER"] == "Inf" | sim.time+1 < sim.conf["RUNTIME_BROWSER"] ){
-		requestAnimationFrame( step )
-	}
-}
+	if (running){
+		sim.step()
+		meter.tick()
 
+		if( sim.conf["RUNTIME_BROWSER"] == "Inf" || sim.time+1 < sim.conf["RUNTIME_BROWSER"] ){
+			requestAnimationFrame( step )
+		}	
+	}
+
+}
 
 
 /* The following custom methods will be added to the simulation object*/
@@ -134,7 +162,9 @@ function postMCSListener(){
 			this.gm.divideCell(i)
 		}
 	}
+	
 }
+
 function initializeGrid(){
 	
 	// add the initializer if not already there
@@ -158,7 +188,7 @@ function initializeGrid(){
 
 
 }
-/* This function counts the total number of cell IDs on the grod*/
+/* This function counts the total number of cell IDs on the grid*/
 function logStats(){        
 	
 	// count the cell IDs currently on the grid:
@@ -171,6 +201,31 @@ function logStats(){
 	
 }
 
+
+// Custom drawing function 
+function drawCanvas(){
+	// Add the canvas if required
+	if( !this.helpClasses["canvas"] ){ 
+		this.addCanvas() 
+	}
+
+	// Clear canvas
+	this.Cim.clear( this.conf["CANVASCOLOR"] || "FFFFFF" )
+	let nrcells=this.conf["NRCELLS"], cellkind, cellborders = this.conf["SHOWBORDERS"]
+	
+
+	for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		this.Cim.drawCells( cellkind+1, "000000")
+		// Draw borders if required
+		if(  cellborders[ cellkind  ]  ){
+			this.Cim.drawCellBorders( cellkind+1, "c30101" )
+		}
+	}
+}
+
+
+
+
 </script>
 </head>
 <body onload="initialize()">
@@ -179,5 +234,8 @@ function logStats(){
  <p>A CPM is coupled to stochastic cell division in between Monte Carlo Steps.
  <br>A modified logStats function returns the total number of cells with the same id.
  </p>
+ <p><button onclick="initialize()">Reset</button></p>
+	<p><button onclick="toggleAnim()">Pause</button></p>
+
 </body>
 </html>
