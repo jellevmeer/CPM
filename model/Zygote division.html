@@ -315,7 +315,7 @@ function zygoteDivision (){
 				random_cell = largest_cells[j]
 
 				// Divide a cell with the highest volume, and increase nDiv for parent and daughter cellId
-				lastnewdiv = this.gm.divideCell(random_cell)
+				lastnewdiv = this.divideCell(random_cell)
 				this.C.cells[random_cell].nDiv ++
 				this.C.cells[lastnewdiv].nDiv ++
 
@@ -442,82 +442,87 @@ function cell_number(){
 
 
 function divideCell(id){
-	// Standard CPM function, non-modified
-		let C = this.C
-		let torus = C.conf.torus.indexOf(true) >= 0
-		if( C.ndim != 2 || torus ){
-			throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
-		}
-		let cp = C.getStat( PixelsByCell )[id], com = C.getStat( Centroids )[id]
-		let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
- 
-		// Loop over the pixels belonging to this cell
-		for( let j = 0 ; j < cp.length ; j ++ ){
-			cx = cp[j][0] - com[0] // x position rel to centroid
-			cy = cp[j][1] - com[1] // y position rel to centroid
- 
-			// sum of squared distances:
-			bxx += cx*cx
-			bxy += cx*cy
-			byy += cy*cy
-		}
- 
-		// This code computes a "dividing line", which is perpendicular to the longest
-		// axis of the cell.
-		if( bxy == 0 ){
-			x0 = 0
-			y0 = 0
-			x1 = 1
-			y1 = 0
-		} else {
-			T = bxx + byy
-			D = bxx*byy - bxy*bxy
-			//L1 = T/2 + Math.sqrt(T*T/4 - D)
-			L2 = T/2 - Math.sqrt(T*T/4 - D)
-			x0 = 0
-			y0 = 0
-			x1 = L2 - byy
-			y1 = bxy
-		}
-		// console.log( id )
-		// create a new ID for the second cell
-		
-		let nid = C.makeNewCellID( C.cellKind( id ))
-		if (C.hasOwnProperty("cells")){			//check if cells class is used
-			C.birth( nid, id )					//birth function from CPMEvol class extention
-		}
-		
-		// Loop over the pixels belonging to this cell
-		//let sidea = 0, sideb = 0
-		//let pix_id = []
-		//let pix_nid = []
-		//let sidea = 0, sideb=0
- 
-		for( let j = 0 ; j < cp.length ; j ++ ){
-			// coordinates of current cell relative to center of mass
-			x2 = cp[j][0]-com[0]
-			y2 = cp[j][1]-com[1]
- 
-			// Depending on which side of the dividing line this pixel is,
-			// set it to the new type
-			side = (x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0)
-			if( side > 0 ){
-				//sidea++
-				C.setpix( cp[j], nid ) 
-				// console.log( cp[j] + " " + C.cellKind( id ) )
-				//pix_nid.push( cp[j] )
-			} else {
-				//pix_id.push( cp[j] )
-				//sideb++
- 
-			}
-		}
-		//console.log( "3 " + C.cellKind( id ) )
-		//cp[id] = pix_id
-		//cp[nid] = pix_nid
-		C.stat_values = {} // remove cached stats or this will crash!!!
-		return nid
+// Standard CPM function, non-modified
+	let C = this.C
+	let torus = C.conf.torus.indexOf(true) >= 0
+	if( C.ndim != 2 || torus ){
+		throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
 	}
+	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]			//CPM. since we are calling from the CELL class
+	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
+
+	// Loop over the pixels belonging to this cell
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		cx = cp[j][0] - com[0] // x position rel to centroid
+		cy = cp[j][1] - com[1] // y position rel to centroid
+
+		// sum of squared distances:
+		// Covariance matrix [[Bxx, Bxy][Bxy, Byy]]
+		bxx += cx*cx
+		bxy += cx*cy
+		byy += cy*cy
+	}
+
+	// This code computes a "dividing line", which is perpendicular to the longest
+	// axis of the cell.
+	if( bxy == 0 ){
+		x0 = 0
+		y0 = 0
+		x1 = 1
+		y1 = 0
+	} else {
+		T = bxx + byy						//Trace of the covariance matrix
+		D = bxx*byy - bxy*bxy				//Determinant of the covariance matrix
+
+		// Characteristic polynomial of a 2x2 matrix:
+		// f(L) = L * L - (Trace(M))L + Determinant(M), where M = matrix, L = eigenvalues
+		//L1 = T/2 + Math.sqrt(T*T/4 - D)		// Change to x1 = L1 - byy to calculate the eigenvalue with a higher magnitude, and thus the eigenvector in the direction of the largest variance
+
+		L2 = T/2 - Math.sqrt(T*T/4 - D)			// L - Characteristic polynomial of a 2x2 matrix, solved for eigenvalue(lambda, or L)
+		x0 = 0
+		y0 = 0
+		x1 = L2 - byy							// Eigenvector x coordinate (line) corresponding to the smaller eigenvalue L2
+		y1 = bxy								// Eigenvector y coordinate
+	}
+	// console.log( id )
+	// create a new ID for the second cell
+	
+	let nid = C.makeNewCellID( C.cellKind( id ))
+	if (C.hasOwnProperty("cells")){			//check if cells class is used
+		C.birth( nid, id )					//birth function from CPMEvol class extention
+	}
+	
+	// Loop over the pixels belonging to this cell
+	//let sidea = 0, sideb = 0
+	//let pix_id = []
+	//let pix_nid = []
+	//let sidea = 0, sideb=0
+
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		// coordinates of current cell relative to center of mass
+		x2 = cp[j][0]-com[0]
+		y2 = cp[j][1]-com[1]
+
+		// Depending on which side of the dividing line this pixel is,
+		// set it to the new type
+		side = (x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0)
+		if( side > 0 ){
+			//sidea++
+			C.setpix( cp[j], nid ) 
+			// console.log( cp[j] + " " + C.cellKind( id ) )
+			//pix_nid.push( cp[j] )
+		} else {
+			//pix_id.push( cp[j] )
+			//sideb++
+
+		}
+	}
+	//console.log( "3 " + C.cellKind( id ) )
+	//cp[id] = pix_id
+	//cp[nid] = pix_nid
+	C.stat_values = {} // remove cached stats or this will crash!!!
+	return nid
+}
 
 
 // Custom drawing function 
@@ -542,7 +547,7 @@ function drawCanvas(){
 					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[sim.C.trace_cellid]], "00FF00" ) 
 				}
 		} catch (err){
-			console.log("Cell Id input error")
+			//console.log("Cell Id input error")
 		}
 
 		// Daughter cell Id visualization  (requires checkbox on html to be checked)
