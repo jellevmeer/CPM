@@ -2,7 +2,7 @@ let CPM = require("./artistoo-cjs.js")
 
 const fs = require('fs');
 
-const file_name = "Adhesion_20-20_and_10-10.txt"
+const file_name = "Adhesion_20-180_and_10-10.txt"
 const filepath = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\" + file_name
 
 
@@ -46,12 +46,15 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.P = this.conf["P"][kind]
 
-
 		/** encode cell-specific cell division counter 
 		 * @type{Number}
 		*/
 		this.nDiv = 0
 
+		/** encode cell-specific polarization check 
+		 * @type{String}
+		*/
+		this.Polarized = "not yet"
 
 		/** holds the ids of the parent cells, all seeded cells have parent -1 
 		*  @type{Array}
@@ -104,7 +107,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 10,							// Seed for random number generation.
+		seed : 3,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -127,7 +130,7 @@ let config = {
 
 		// PerimeterConstraint parameters
 		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
-		P: [0,800] 				    // Target perimeter of each cellkind		
+		P: [0,900] 				    // Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -148,20 +151,28 @@ let config = {
 		zoom : 2,							// zoom in on canvas with this factor.
 		
 		// Output images
-		SAVEIMG : false,						// Should a png image of the grid be saved
+		SAVEIMG : true,						// Should a png image of the grid be saved
 		// during the simulation?
-		IMGFRAMERATE : 1,					// If so, do this every <IMGFRAMERATE> MCS.
-		SAVEPATH : "output/img/ZygoteCellDivision",	// ... And save the image in this folder.
-		EXPNAME : "ZygoteCellDivision",					// Used for the filename of output images.
+		IMGFRAMERATE : 10,					// If so, do this every <IMGFRAMERATE> MCS.
+		SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/CleavageDivision2",	// ... And save the image in this folder.
+		EXPNAME : "CleavageDivision2",					// Used for the filename of output images.
 		
 		// Output stats etc
-		STATSOUT : { browser: false, node: false }, // Should stats be computed?
+		STATSOUT : { browser: false, node: true }, // Should stats be computed?
 		LOGRATE : 100							// Output stats every <LOGRATE> MCS.
 
 	}
 }
 /*	---------------------------------- */
+let sim, meter, Cim
+let running = true
 
+function toggleAnim(){
+	running = !running
+	if( running ){
+		step()
+	}
+}
 
 	 /* The following functions are defined below and will be added to
 	 	the simulation object. If Custom-methods above is set to false,
@@ -171,13 +182,26 @@ let config = {
         zygoteDivision : zygoteDivision,
 	 	initializeGrid : initializeGrid,
 		divideCell : divideCell,
-		logStats : logStats,
+		drawCanvas : drawCanvas,
+		backgroundBorderpixelCounter : backgroundBorderpixelCounter,
 		perimeterCounter : perimeterCounter,
 		compaction : compaction,
+		polarization : polarization,
 		cell_number : cell_number,
+		toggleAnim : toggleAnim,
 		run : run
+		
 	 }
-	let sim = new CPM.Simulation( config, custommethods )
+	sim = new CPM.Simulation( config, custommethods )
+
+	if( !Cim ){
+		sim.addCanvas()
+	} else {
+		Cim.sim = sim
+	}
+	
+	sim.Cim.el.onclick = toggleAnim
+	running = true
 
 function step(){
 	sim.step()
@@ -204,12 +228,35 @@ let old_cells = 0
 function postMCSListener(){
 	this.zygoteDivision()
 
-	// Check the perimeter every 100 MCS and every time a cell has divided
-	if (sim.C.time % 50 == 0 ){
-		this.perimeterCounter()
+	let cells = this.cell_number()
+
+	// Check the perimeter every 50 MCS and every time a cell has divided
+	if (sim.C.time % 50 == 0 || cells > old_cells){
+		let bg_borderpixels = this.backgroundBorderpixelCounter()
+		this.perimeterCounter(bg_borderpixels)
+		old_cells = cells
 	}
-	this.compaction()	
+
+	if (cells == 8){
+	this.compaction()
+	}
+
+	if (cells > 8){
+	this.polarization()
+	}
 }	
+
+// Count the number of non-background cells on the grid	
+function cell_number(){
+	let nr_cells = 0
+	for( let i of this.C.cellIDs() ){
+		if( this.C.cellKind( i ) == 1 ){		
+			nr_cells++
+		}
+	}	
+	return nr_cells
+}
+
 
 // To do:
 // fix divided cells
@@ -267,7 +314,7 @@ function zygoteDivision (){
 				random_cell = largest_cells[j]
 
 				// Divide a cell with the highest volume, and increase nDiv for parent and daughter cellId
-				lastnewdiv = this.gm.divideCell(random_cell)
+				lastnewdiv = this.divideCell(random_cell)
 				this.C.cells[random_cell].nDiv ++
 				this.C.cells[lastnewdiv].nDiv ++
 
@@ -304,7 +351,8 @@ function zygoteDivision (){
 	}
 }
 
-function perimeterCounter(){
+// Counts the number of unique background borderpixels for every cellId
+function backgroundBorderpixelCounter(){
 
 	let cellborderpixels = { }
 		
@@ -319,6 +367,7 @@ function perimeterCounter(){
 			cellborderpixels[id].push( arraycoord )
 		}
 	}
+	
 	//console.log( "borderpixels")
 	//console.log(cellborderpixels)
 
@@ -330,11 +379,12 @@ function perimeterCounter(){
 		values = number of neighbor cellpixels at the border.
 	*/
 			
-	let neigh_borderpixels = [], perimeter
+	let neigh_borderpixels = {}
 	
 	//loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel to calculate the perimeter of the cell cluster
 	//this assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
-	for (let cellid in cellborderpixels){		
+	for (let cellid in cellborderpixels){
+		neigh_borderpixels[cellid] = []
 		let cbp = cellborderpixels[cellid]
 
 		//loop over border pixels of cell
@@ -348,23 +398,35 @@ function perimeterCounter(){
 				let neighbor_id = this.C.pixt( neighborpix )
 				let neigh_index = this.C.grid.p2i(neighborpix)
 
-				// Add all unique background pixels to an array with length of the array a proxy for the perimeter.
+				// Add all unique background pixels to an array with length of the array as a proxy for the perimeter.
 				if (neighbor_id == 0) {
-					if( !neigh_borderpixels.includes(neigh_index) ){
-						neigh_borderpixels.push(neigh_index)
+					if( !neigh_borderpixels[cellid].includes(neigh_index) ){
+						neigh_borderpixels[cellid].push(neigh_index)
 					}
 				}
-
 			}
 		}
 	}
-	perimeter = neigh_borderpixels.length
-	console.log(sim.time + "\t" + this.C.conf.seed + "\t" + this.cell_number() + "\t" +  perimeter)
-	
+	return neigh_borderpixels
+}
+
+
+// Count the total number of background pixels that border on the developing structure
+function perimeterCounter(neigh_borderpixels){
+	let perimeter = 0
+
+	for (let cellid in neigh_borderpixels){
+		perimeter = perimeter + neigh_borderpixels[cellid].length	
+	}
+	//console.log(neigh_borderpixels)
+	//console.log( sim.time + "\t" + "The number of background borderpixels making up the perimeter is:" + "\t" + perimeter)
+	return perimeter
+
 	// Writing output to text file for further visualization
 	// Time, the seed, number of cells, perimeter pixel number, adhesion to background, adhesion between blastomeres
 	const data = String([sim.time, this.C.conf.seed, this.cell_number(), perimeter, [this.C.conf["J"][0][1]], [this.C.conf["J"][1][1]]])
 
+/*
 	fs.appendFileSync(filepath, data + "\n", 'utf8', (err) => {
 		if (err) {
 			console.error('Error writing file:', err);
@@ -372,115 +434,208 @@ function perimeterCounter(){
 		} 
 	})
 
-
+*/
 }
-
 
 
 // Change the adhesion perimeters for blastomere cells to mimic compaction, at n = 8 blastomeres
 function compaction(){
-		let nr_cells = this.cell_number()
+	let nr_cells = this.cell_number()
 
-		//Change all J parameters in conf to increase compaction
-		if (nr_cells == 8) {
-			for( let i of this.C.cellIDs() ){
-				if( this.C.cellKind( i ) == 1 ){		
-					this.C.cells[i].conf["J"] = [[0,20], [20,10]]
-				}
+	//Change all J parameters in conf to increase compaction
+	if (nr_cells == 8) {
+		for( let i of this.C.cellIDs() ){
+			if( this.C.cellKind( i ) == 1 ){		
+				this.C.cells[i].conf["J"] = [[0,80], [80,10]]
 			}
-		}	
-}
-
-
-// Count the number of non-background cells on the grid	
-function cell_number(){
-	let nr_cells = 0
-	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind( i ) == 1 ){		
-			nr_cells++
 		}
 	}	
-	return nr_cells
+}
+
+// 
+function polarization(){
+	let bg_borderpixels = this.backgroundBorderpixelCounter()
+
+	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value
+	for (let cellid in bg_borderpixels){
+		 //console.log(bg_borderpixels[cellid])
+		 if (bg_borderpixels[cellid].length == 0){
+			this.C.cells[cellid].Polarized = "Apolar"
+		 } else {
+			this.C.cells[cellid].Polarized = "Polar"
+		 }
+	}
 }
 
 
 function divideCell(id){
-	// Standard CPM function, non-modified
-		let C = this.C
-		let torus = C.conf.torus.indexOf(true) >= 0
-		if( C.ndim != 2 || torus ){
-			throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
-		}
-		let cp = C.getStat( PixelsByCell )[id], com = C.getStat( Centroids )[id]
-		let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
- 
-		// Loop over the pixels belonging to this cell
-		for( let j = 0 ; j < cp.length ; j ++ ){
-			cx = cp[j][0] - com[0] // x position rel to centroid
-			cy = cp[j][1] - com[1] // y position rel to centroid
- 
-			// sum of squared distances:
-			bxx += cx*cx
-			bxy += cx*cy
-			byy += cy*cy
-		}
- 
-		// This code computes a "dividing line", which is perpendicular to the longest
-		// axis of the cell.
-		if( bxy == 0 ){
-			x0 = 0
-			y0 = 0
-			x1 = 1
-			y1 = 0
-		} else {
-			T = bxx + byy
-			D = bxx*byy - bxy*bxy
-			//L1 = T/2 + Math.sqrt(T*T/4 - D)
-			L2 = T/2 - Math.sqrt(T*T/4 - D)
-			x0 = 0
-			y0 = 0
-			x1 = L2 - byy
-			y1 = bxy
-		}
-		// console.log( id )
-		// create a new ID for the second cell
-		
-		let nid = C.makeNewCellID( C.cellKind( id ))
-		if (C.hasOwnProperty("cells")){			//check if cells class is used
-			C.birth( nid, id )					//birth function from CPMEvol class extention
-		}
-		
-		// Loop over the pixels belonging to this cell
-		//let sidea = 0, sideb = 0
-		//let pix_id = []
-		//let pix_nid = []
-		//let sidea = 0, sideb=0
- 
-		for( let j = 0 ; j < cp.length ; j ++ ){
-			// coordinates of current cell relative to center of mass
-			x2 = cp[j][0]-com[0]
-			y2 = cp[j][1]-com[1]
- 
-			// Depending on which side of the dividing line this pixel is,
-			// set it to the new type
-			side = (x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0)
-			if( side > 0 ){
-				//sidea++
-				C.setpix( cp[j], nid ) 
-				// console.log( cp[j] + " " + C.cellKind( id ) )
-				//pix_nid.push( cp[j] )
-			} else {
-				//pix_id.push( cp[j] )
-				//sideb++
- 
-			}
-		}
-		//console.log( "3 " + C.cellKind( id ) )
-		//cp[id] = pix_id
-		//cp[nid] = pix_nid
-		C.stat_values = {} // remove cached stats or this will crash!!!
-		return nid
+// Standard CPM function, non-modified
+	let C = this.C
+	let torus = C.conf.torus.indexOf(true) >= 0
+	if( C.ndim != 2 || torus ){
+		throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
 	}
+	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]			//CPM. since we are calling from the CELL class
+	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
+
+	// Loop over the pixels belonging to this cell
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		cx = cp[j][0] - com[0] // x position rel to centroid
+		cy = cp[j][1] - com[1] // y position rel to centroid
+
+		// sum of squared distances:
+		// Covariance matrix [[Bxx, Bxy][Bxy, Byy]]
+		bxx += cx*cx
+		bxy += cx*cy
+		byy += cy*cy
+	}
+
+	// This code computes a "dividing line", which is perpendicular to the longest
+	// axis of the cell.
+	if( bxy == 0 ){
+		x0 = 0
+		y0 = 0
+		x1 = 1
+		y1 = 0
+	} else {
+		T = bxx + byy						//Trace of the covariance matrix
+		D = bxx*byy - bxy*bxy				//Determinant of the covariance matrix
+
+		// Characteristic polynomial of a 2x2 matrix:
+		// f(L) = L * L - (Trace(M))L + Determinant(M), where M = matrix, L = eigenvalues
+		//L1 = T/2 + Math.sqrt(T*T/4 - D)		// Change to x1 = L1 - byy to calculate the eigenvalue with a higher magnitude, and thus the eigenvector in the direction of the largest variance
+
+		L2 = T/2 - Math.sqrt(T*T/4 - D)			// L - Characteristic polynomial of a 2x2 matrix, solved for eigenvalue(lambda, or L)
+		x0 = 0
+		y0 = 0
+		x1 = L2 - byy							// Eigenvector x coordinate (line) corresponding to the smaller eigenvalue L2
+		y1 = bxy								// Eigenvector y coordinate
+	}
+	// console.log( id )
+	// create a new ID for the second cell
+	
+	let nid = C.makeNewCellID( C.cellKind( id ))
+	if (C.hasOwnProperty("cells")){			//check if cells class is used
+		C.birth( nid, id )					//birth function from CPMEvol class extention
+	}
+	
+	// Loop over the pixels belonging to this cell
+	//let sidea = 0, sideb = 0
+	//let pix_id = []
+	//let pix_nid = []
+	//let sidea = 0, sideb=0
+
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		// coordinates of current cell relative to center of mass
+		x2 = cp[j][0]-com[0]
+		y2 = cp[j][1]-com[1]
+
+		// Depending on which side of the dividing line this pixel is,
+		// set it to the new type
+		side = (x1 - x0)*(y2 - y0) - (x2 - x0)*(y1 - y0)
+		if( side > 0 ){
+			//sidea++
+			C.setpix( cp[j], nid ) 
+			// console.log( cp[j] + " " + C.cellKind( id ) )
+			//pix_nid.push( cp[j] )
+		} else {
+			//pix_id.push( cp[j] )
+			//sideb++
+
+		}
+	}
+	//console.log( "3 " + C.cellKind( id ) )
+	//cp[id] = pix_id
+	//cp[nid] = pix_nid
+	C.stat_values = {} // remove cached stats or this will crash!!!
+	return nid
+}
+
+
+// Custom drawing function 
+function drawCanvas(){
+	// Add the canvas if required
+	if( !this.helpClasses["canvas"] ){ this.addCanvas() }
+
+	// Clear canvas
+	this.Cim.clear( this.conf["CANVASCOLOR"] || "FFFFFF" )
+	let nrcells=this.conf["NRCELLS"], cellkind, cellborders = this.conf["SHOWBORDERS"]
+	
+
+
+	// Loop over all cell types and colour them + their borders
+	for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		this.Cim.drawCells( cellkind+1, "000000")
+
+		// Specific cell Id visualization  (requires specific cell Id input on Lineage Trace Cell Id <input>)
+		// Error catcher is included for when the cell Id does not yet exist
+		try {	
+			if (sim.C.trace_cellid > 0){
+					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[sim.C.trace_cellid]], "00FF00" ) 
+				}
+		} catch (err){
+			//console.log("Cell Id input error")
+		}
+
+		// Daughter cell Id visualization  (requires checkbox on html to be checked)
+		// Error catcher is included for when the cell Id does not yet exist		
+		try {
+			if (sim.drawDaughterColors){
+				let daughters = this.C.cells[sim.C.trace_cellid].daughterId 
+				
+				for (let i of daughters){
+					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "00FF00" ) 
+				}
+			}
+		} catch (err){
+			//console.log("Cell Id does not exist or cannot be visualized")
+		}
+
+		// Polarization visualization  (requires checkbox on html to be checked)
+		// Error catcher is included for when polarization has not occured yet		
+		try {
+			if (sim.drawPolarColors){
+				for (let i of this.C.cellIDs()){
+					if (sim.C.cells[i].Polarized == "Polar"){
+						sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "40E0D0" ) 
+					}
+				}
+			}
+		} catch (err){
+			//console.log("Cell Id does not exist or cannot be visualized")
+		}
+
+		// Draw borders if required
+		if ( cellborders[cellkind] ){
+			this.Cim.drawCellBorders( cellkind+1, "c30101" )
+		}
+	}
+}
+
+
+// Toggle functions for checkboxes necessary for visualization
+// Checkboxes are mutually exclusive
+function changeColor(){
+	sim.drawDaughterColors = !sim.drawDaughterColors
+
+	const checkbox = document.getElementById("polarize")
+	if (checkbox.checked){
+		checkbox.checked = !checkbox.checked 
+		sim.drawPolarColors = !sim.drawPolarColors
+
+	}
+}
+
+function changePolarColor(){
+	sim.drawPolarColors = !sim.drawPolarColors
+
+	const checkbox = document.getElementById("trace_daughter")
+	if (checkbox.checked){
+		checkbox.checked = !checkbox.checked
+		sim.drawDaughterColors = !sim.drawDaughterColors
+ 
+	}
+}	
 
 function logStats(){
 	

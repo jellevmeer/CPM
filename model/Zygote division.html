@@ -62,6 +62,11 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.nDiv = 0
 
+		/** encode cell-specific polarization check 
+		 * @type{String}
+		*/
+		this.Polarized = "not yet"
+
 		/** holds the ids of the parent cells, all seeded cells have parent -1 
 		*  @type{Array}
 		*/
@@ -111,7 +116,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 2,							// Seed for random number generation.
+		seed : 0,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -134,7 +139,7 @@ let config = {
 
 		// PerimeterConstraint parameters
 		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
-		P: [0,800] 				    // Target perimeter of each cellkind		
+		P: [0,900] 				    // Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -190,10 +195,14 @@ function initialize(){
 	 	initializeGrid : initializeGrid,
 		divideCell : divideCell,
 		drawCanvas : drawCanvas,
+		backgroundBorderpixelCounter : backgroundBorderpixelCounter,
 		perimeterCounter : perimeterCounter,
 		compaction : compaction,
+		polarization : polarization,
 		cell_number : cell_number,
-		toggleAnim : toggleAnim
+		toggleAnim : toggleAnim,
+		resetButton : resetButton
+
 		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
@@ -209,9 +218,10 @@ function initialize(){
 	sim.Cim.el.onclick = toggleAnim
 	running = true
 
-// option to draw lineages based on cellId and their daughterIds
+// option to draw lineages based on cellId and their daughterIds, and based on polarization
 	sim.trace_cellid = 0
 	sim.drawDaughterColors = false
+	sim.drawPolarColors = false
 
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
@@ -253,11 +263,33 @@ function postMCSListener(){
 
 	// Check the perimeter every 50 MCS and every time a cell has divided
 	if (sim.C.time % 50 == 0 || cells > old_cells){
-		this.perimeterCounter()
+		let bg_borderpixels = this.backgroundBorderpixelCounter()
+		this.perimeterCounter(bg_borderpixels)
 		old_cells = cells
 	}
+
+	if (cells == 8){
 	this.compaction()
+	}
+
+	if (cells > 8){
+	this.polarization()
+	}
+
 }	
+
+
+// Count the number of non-background cells on the grid	
+function cell_number(){
+	let nr_cells = 0
+	for( let i of this.C.cellIDs() ){
+		if( this.C.cellKind( i ) == 1 ){		
+			nr_cells++
+		}
+	}	
+	return nr_cells
+}
+
 
 // To do:
 // fix divided cells
@@ -352,7 +384,8 @@ function zygoteDivision (){
 	}
 }
 
-function perimeterCounter(){
+// Counts the number of unique background borderpixels for every cellId
+function backgroundBorderpixelCounter(){
 
 	let cellborderpixels = { }
 		
@@ -379,11 +412,12 @@ function perimeterCounter(){
 		values = number of neighbor cellpixels at the border.
 	*/
 			
-	let neigh_borderpixels = [], perimeter
+	let neigh_borderpixels = {}
 	
 	//loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel to calculate the perimeter of the cell cluster
 	//this assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
-	for (let cellid in cellborderpixels){		
+	for (let cellid in cellborderpixels){
+		neigh_borderpixels[cellid] = []
 		let cbp = cellborderpixels[cellid]
 
 		//loop over border pixels of cell
@@ -397,18 +431,29 @@ function perimeterCounter(){
 				let neighbor_id = this.C.pixt( neighborpix )
 				let neigh_index = this.C.grid.p2i(neighborpix)
 
-				// Add all unique background pixels to an array with length of the array a proxy for the perimeter.
+				// Add all unique background pixels to an array with length of the array as a proxy for the perimeter.
 				if (neighbor_id == 0) {
-					if( !neigh_borderpixels.includes(neigh_index) ){
-						neigh_borderpixels.push(neigh_index)
+					if( !neigh_borderpixels[cellid].includes(neigh_index) ){
+						neigh_borderpixels[cellid].push(neigh_index)
 					}
 				}
-
 			}
 		}
 	}
-	perimeter = neigh_borderpixels.length
+	return neigh_borderpixels
+}
+
+
+// Count the total number of background pixels that border on the developing structure
+function perimeterCounter(neigh_borderpixels){
+	let perimeter = 0
+
+	for (let cellid in neigh_borderpixels){
+		perimeter = perimeter + neigh_borderpixels[cellid].length	
+	}
+	//console.log(neigh_borderpixels)
 	//console.log( sim.time + "\t" + "The number of background borderpixels making up the perimeter is:" + "\t" + perimeter)
+	return perimeter
 }
 
 
@@ -427,17 +472,19 @@ function compaction(){
 	}	
 }
 
+// 
+function polarization(){
+	let bg_borderpixels = this.backgroundBorderpixelCounter()
 
-
-// Count the number of non-background cells on the grid	
-function cell_number(){
-	let nr_cells = 0
-	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind( i ) == 1 ){		
-			nr_cells++
-		}
-	}	
-	return nr_cells
+	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value
+	for (let cellid in bg_borderpixels){
+		 //console.log(bg_borderpixels[cellid])
+		 if (bg_borderpixels[cellid].length == 0){
+			this.C.cells[cellid].Polarized = "Apolar"
+		 } else {
+			this.C.cells[cellid].Polarized = "Polar"
+		 }
+	}
 }
 
 
@@ -564,6 +611,20 @@ function drawCanvas(){
 			//console.log("Cell Id does not exist or cannot be visualized")
 		}
 
+		// Polarization visualization  (requires checkbox on html to be checked)
+		// Error catcher is included for when polarization has not occured yet		
+		try {
+			if (sim.drawPolarColors){
+				for (let i of this.C.cellIDs()){
+					if (sim.C.cells[i].Polarized == "Polar"){
+						sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "40E0D0" ) 
+					}
+				}
+			}
+		} catch (err){
+			//console.log("Cell Id does not exist or cannot be visualized")
+		}
+
 		// Draw borders if required
 		if ( cellborders[cellkind] ){
 			this.Cim.drawCellBorders( cellkind+1, "c30101" )
@@ -572,9 +633,37 @@ function drawCanvas(){
 }
 
 
-
+// Toggle functions for checkboxes necessary for visualization
+// Checkboxes are mutually exclusive
 function changeColor(){
 	sim.drawDaughterColors = !sim.drawDaughterColors
+
+	const checkbox = document.getElementById("polarize")
+	if (checkbox.checked){
+		checkbox.checked = !checkbox.checked 
+		sim.drawPolarColors = !sim.drawPolarColors
+
+	}
+}
+
+function changePolarColor(){
+	sim.drawPolarColors = !sim.drawPolarColors
+
+	const checkbox = document.getElementById("trace_daughter")
+	if (checkbox.checked){
+		checkbox.checked = !checkbox.checked
+		sim.drawDaughterColors = !sim.drawDaughterColors
+ 
+	}
+}
+
+function resetButton(){
+    sim.C.reset()
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+        canvas.remove();
+    }
+    initialize()
 }
 
 </script>
@@ -586,7 +675,7 @@ function changeColor(){
 <br>Compaction occurs when the 8-cell stage is reached.
 </p>
 <p>
-<button onclick="initialize()">Reset</button>
+<button onclick="resetButton()">Reset</button>
 <button onclick="toggleAnim()">Pause</button></p>
 
 <div class="slidecontainer">
@@ -600,8 +689,11 @@ function changeColor(){
 </tr>
 
 <tr>
-	<td>Daughter cell visualization</td><td>
+	<td>Daughter cells of Cell Id</td><td>
 	<input type="checkbox" id="trace_daughter" oninput="changeColor()" switch>
+	</td>
+	<td>Polar cells</td><td>
+	<input type="checkbox" id="polarize" oninput="changePolarColor()" switch>
 	</td>
 </tr>
 </table>
