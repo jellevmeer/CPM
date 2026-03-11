@@ -231,12 +231,15 @@ function initialize(){
 	sim.Cim.el.onclick = toggleAnim
 	running = true
 
-// option to draw lineages based on cellId and their daughterIds, and based on polarization
+	// option to draw lineages based on cellId and their daughterIds, and based on polarization
 	sim.trace_cellid = 0
 	sim.drawDaughterColors = false
 	sim.drawPolarColors = false
+/*
+	//Random function validation
 	sim.res = {"asym" : 0, "sym" : 0}
-
+	sim.ran = {"0" : 0, "1" : 0}
+*/
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
 }
@@ -289,7 +292,7 @@ function postMCSListener(){
 	if (cells > 8){
 	this.polarization()
 	}
-
+/*
 	// Check the distribution of the weighted_random output
 	let result = this.weighted_random(item, weight)
 	if (result[0] == 'asym'){
@@ -298,6 +301,16 @@ function postMCSListener(){
 	if (result[0] == 'sym'){
 		sim.res['sym'] = sim.res['sym'] + 1
 	}
+
+	// Check the distribution of the ran() function
+	let j = this.C.ran(0, 1)
+	if (j == 0){
+		sim.ran['0'] = sim.ran['0'] + 1
+	} 
+	if (j == 1){
+		sim.ran['1'] = sim.ran['1'] + 1
+	}
+*/
 }	
 
 
@@ -312,11 +325,11 @@ function cell_number(){
 	return nr_cells
 }
 
-	let item = ["asym", "sym"]
-	let weight = [0.9, 0.1]
+	//let item = ["asym", "sym"], weight = [0.9, 0.1]
 
 // Weighted random function
 function weighted_random(item, weight){
+	
 	if (item.length != weight.length){
 		throw new Error("Item and weight should have the same size!")
 	}
@@ -549,14 +562,15 @@ function polarization(){
 
 
 function divideCell(id){
-// Standard CPM function, non-modified
+// Standard CPM function, modified to include asymmetric or symmetric cell divisions
+// based on given weights
 	let C = this.C
 	let torus = C.conf.torus.indexOf(true) >= 0
 	if( C.ndim != 2 || torus ){
 		throw("The divideCell methods is only implemented for 2D non-torus lattices yet!")
 	}
 	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]			//CPM. since we are calling from the CELL class
-	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
+	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2, L1
 
 	// Loop over the pixels belonging to this cell
 	for( let j = 0 ; j < cp.length ; j ++ ){
@@ -578,19 +592,38 @@ function divideCell(id){
 		x1 = 1
 		y1 = 0
 	} else {
-		T = bxx + byy						//Trace of the covariance matrix
-		D = bxx*byy - bxy*bxy				//Determinant of the covariance matrix
+		T = bxx + byy							//Trace of the covariance matrix
+		D = bxx*byy - bxy*bxy					//Determinant of the covariance matrix
 
 		// Characteristic polynomial of a 2x2 matrix:
 		// f(L) = L * L - (Trace(M))L + Determinant(M), where M = matrix, L = eigenvalues
-		//L1 = T/2 + Math.sqrt(T*T/4 - D)		// Change to x1 = L1 - byy to calculate the eigenvalue with a higher magnitude, and thus the eigenvector in the direction of the largest variance
-
+		// Change to x1 = L1 - byy to calculate the eigenvalue with a higher magnitude, 
+		// and thus the eigenvector in the direction of the largest variance
+		L1 = T/2 + Math.sqrt(T*T/4 - D)			
 		L2 = T/2 - Math.sqrt(T*T/4 - D)			// L - Characteristic polynomial of a 2x2 matrix, solved for eigenvalue(lambda, or L)
 		x0 = 0
 		y0 = 0
-		x1 = L2 - byy							// Eigenvector x coordinate (line) corresponding to the smaller eigenvalue L2
 		y1 = bxy								// Eigenvector y coordinate
-	}
+
+		let division_modes = ["asym", "sym"], division
+		// Eigenvector X-coordinate depends on the weights that are given 
+		if (C.cells[id].Polarized == "Apolar"){
+			let weight = [1, 0]
+			division = this.weighted_random(division_modes, weight)
+		} else if (C.cells[id].Polarized == "not yet"){
+			let weight = [1, 0]
+			division = this.weighted_random(division_modes, weight)
+		} else {
+			let weight = [0.5, 0.5]
+			division = this.weighted_random(division_modes, weight)
+		}
+
+		if (division[0] == "asym"){
+			x1 = L2 - byy						// Eigenvector x coordinate (line) corresponding to the smaller eigenvalue L2
+		} else{
+			x1 = L1 - byy						// Eigenvector x coordinate (line) corresponding to the bigger eigenvalue L1
+		}
+	} 
 	// console.log( id )
 	// create a new ID for the second cell
 	
