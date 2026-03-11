@@ -214,9 +214,9 @@ function initialize(){
 		polarization : polarization,
 		cell_number : cell_number,
 		toggleAnim : toggleAnim,
-		resetButton : resetButton
+		resetButton : resetButton,
+		weighted_random : weighted_random
 
-		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -235,6 +235,7 @@ function initialize(){
 	sim.trace_cellid = 0
 	sim.drawDaughterColors = false
 	sim.drawPolarColors = false
+	sim.res = {"asym" : 0, "sym" : 0}
 
 	meter = new FPSMeter({left:"auto", right:"5px"})
 	step()
@@ -289,6 +290,14 @@ function postMCSListener(){
 	this.polarization()
 	}
 
+	// Check the distribution of the weighted_random output
+	let result = this.weighted_random(item, weight)
+	if (result[0] == 'asym'){
+		sim.res['asym'] = sim.res['asym'] + 1
+	} 
+	if (result[0] == 'sym'){
+		sim.res['sym'] = sim.res['sym'] + 1
+	}
 }	
 
 
@@ -301,6 +310,31 @@ function cell_number(){
 		}
 	}	
 	return nr_cells
+}
+
+	let item = ["asym", "sym"]
+	let weight = [0.9, 0.1]
+
+// Weighted random function
+function weighted_random(item, weight){
+	if (item.length != weight.length){
+		throw new Error("Item and weight should have the same size!")
+	}
+
+	//Calculate cumulative weights and the maxCumWeight
+	const cumWeight = []
+	for (let i = 0; i < weight.length; i++){
+		cumWeight[i] = weight[i] + (cumWeight[i - 1] || 0)
+	}
+	const maxCumWeight = cumWeight[cumWeight.length - 1]
+
+	// Generate a pseudorandom number based on [0 : maxCumWeight], and look up the item associated
+	const random_number = maxCumWeight * this.C.random()
+	for (let index = 0; index < item.length; index++){
+		if(cumWeight[index] >= random_number){
+			return [item[index], index]
+		}
+	}
 }
 
 
@@ -332,17 +366,10 @@ function zygoteDivision (){
 	// Collect slice of all volumes based on the amount of celldivisions that have taken place to mimic prevent cells from dividing faster than other cells
 	let largest_V = all_volumes.sort(function(a, b){return b - a})
 	let largest_Vs = largest_V.slice(0, largest_V_slice)	
-	console.log("These are the largest volumes:" + "\t" + largest_Vs)
-	// Select largest volume value present in all cells
-/*
-	for(let i of all_volumes){
-		if (i > largest_V){
-			largest_V = i
-		} 
-	}
-*/
+	//console.log("These are the largest volumes:" + "\t" + largest_Vs)
 
 	let largest_cells = [] 
+	// Select largest volume value present in all cells
 
 	// Construct an array with cellIDs containing the largest volume
 	for( let i of this.C.cellIDs() ){
@@ -351,14 +378,13 @@ function zygoteDivision (){
 				if ( this.C.cells[i].V == j ){
 					if (!largest_cells.includes(i)){
 						largest_cells.push(i)
-
 					}
 				}			
 			}
 
 		}	
 	}
-	console.log("These are the largest cells:" + "\t" + largest_cells)
+	//console.log("These are the largest cells:" + "\t" + largest_cells)
 
 
 	let max_loop, j, lastnewdiv, random_cell, cellid 
@@ -390,18 +416,18 @@ function zygoteDivision (){
 				// Visual check random number, chosen cellId + what cell is divided, and how this changes the largest_cells array
 				//console.log(largest_cells + "\t" + "all the big cells")
 				//console.log(j)
-				console.log(random_cell + "\t" + "save me")
+				//console.log(random_cell + "\t" + "save me")
 
 				// contains all parent cell ids that have divided
 				divided_cells.push(random_cell)
 
 				//console.log(divided_cells)
-				console.log(largest_cells + "\t" + "before splicing me, length array is:" + "\t" + largest_cells.length)
+				//console.log(largest_cells + "\t" + "before splicing me, length array is:" + "\t" + largest_cells.length)
 
 				largest_cells.splice(j, 1)
 				largest_V_slice --
 				
-				console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
+				//console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
 
 				// Reset minimum division time 
 				if (largest_cells.length == 0){
