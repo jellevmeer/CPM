@@ -67,12 +67,24 @@ class Blastomeres extends CPM.Cell {
 		*/
 		this.Polarized = "not yet"
 
+		/** encode cell-specific shape as length major axis/minor axis
+		 * @type{number}
+		*/
+		this.distortion = []
+		
+		/** encode average cell-specific shape as length major axis/minor axis
+		 *  a base value of 1 ensures that cell pre-100MCS of existence have a low division probability
+		 * @type{number}
+		*/
+		this.avgDistortion = 1
+
 		/** holds the ids of the parent cells, all seeded cells have parent -1 
 		*  @type{Array}
 		*/
 		this.parentId = [-1]
 
-		/** holds the ids of the daughter cells originating from this cell, including daughter cell with the same id as the parent 
+		/** holds the ids of the daughter cells originating from this cell, 
+		*  including daughter cell with the same id as the parent 
 		*  @type{Array}
 		*/
 		this.daughterId = [this.id]
@@ -94,7 +106,8 @@ class Blastomeres extends CPM.Cell {
 		let V = parent.V
 		let P = parent.P
 
-		let delta_VP = 0.025
+		let maxPercentageDev = 5
+		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
 		let vol_dev = (delta_VP * V/2)
 		let per_dev = (P * 0.70 * delta_VP)
 		let j = this.C.ran(0, 1)
@@ -121,7 +134,12 @@ class Blastomeres extends CPM.Cell {
 		let P = parent.P
 		this.P = P * 0.70
 		parent.P = P * 0.70
-*/
+*/		
+		//Inherit polarization of parent cellIds 
+		this.Polarized = parent.Polarized
+
+		// Calculate distortion parameter cell shape
+
 	}
 }
 
@@ -226,7 +244,8 @@ function initialize(){
 		cell_number : cell_number,
 		toggleAnim : toggleAnim,
 		resetButton : resetButton,
-		weighted_random : weighted_random
+		weighted_random : weighted_random,
+		cellShape : cellShape
 		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
@@ -292,15 +311,21 @@ function postMCSListener(){
 		old_cells = cells
 	}
 
-	if (cells == 8){
+	if (cells == 6){
 	this.compaction()
 	}
 
-	if (cells > 8){
+	if (cells > 5){
 	this.polarization()
 	}
 
-}	
+	// Calculate cell shape for each cell
+	for( let i of this.C.cellIDs() ){
+		if( this.C.cellKind(i) == 1 ){		
+			this.cellShape(i)
+		}
+	}
+}
 
 
 // Count the number of non-background cells on the grid	
@@ -366,7 +391,7 @@ function zygoteDivision (){
 	// Collect slice of all volumes based on the amount of celldivisions that have taken place to mimic prevent cells from dividing faster than other cells
 	let largest_V = all_volumes.sort(function(a, b){return b - a})
 	let largest_Vs = largest_V.slice(0, largest_V_slice)	
-	//console.log("These are the largest volumes:" + "\t" + largest_Vs)
+	//console.log("These are the largest volumes:" + "\t" + largest_V)
 	
 	let largest_cells = [] 
 
@@ -520,7 +545,7 @@ function compaction(){
 	let nr_cells = this.cell_number()
 
 	//Change all J parameters in conf to increase compaction
-	if (nr_cells == 8) {
+	if (nr_cells == 6) {
 		for( let i of this.C.cellIDs() ){
 			if( this.C.cellKind( i ) == 1 ){		
 				this.C.cells[i].conf["J"] = [[0,80], [80,10]]
@@ -534,13 +559,68 @@ function polarization(){
 	let bg_borderpixels = this.backgroundBorderpixelCounter()
 
 	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value
+	// based on the localization of the cell in the embryo. 
+	// Polarization occurs gradually for the outer cells to mimic asynchronous polarization in vivo
 	for (let cellid in bg_borderpixels){
 		 //console.log(bg_borderpixels[cellid])
-		 if (bg_borderpixels[cellid].length == 0){
+		if (bg_borderpixels[cellid].length > 0 ){
+			if (this.C.cells[cellid].Polarized == "Apolar" || this.C.cells[cellid].Polarized == "not yet"){
+				if (this.C.random() < 0.003){
+					this.C.cells[cellid].Polarized = "Polar"
+				}
+			}
+		}
+		// Asymmetrically divided and subsequently internalized cells get reassigned to the Apolar class
+		if (bg_borderpixels[cellid].length == 0 && this.C.cells[cellid].Polarized == "Polar"){
 			this.C.cells[cellid].Polarized = "Apolar"
-		 } else {
-			this.C.cells[cellid].Polarized = "Polar"
-		 }
+		}
+	}
+}
+
+	// Measure cell shape (distortion) for each cell
+function cellShape(id){
+	let C = this.C
+	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]			//CPM. since we are calling from the CELL class
+	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, T, D, x1, y1, L2, L1, shape
+
+	// Loop over the pixels belonging to this cell
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		cx = cp[j][0] - com[0] // x position rel to centroid
+		cy = cp[j][1] - com[1] // y position rel to centroid
+
+		// sum of squared distances:
+		// Covariance matrix [[Bxx, Bxy][Bxy, Byy]]
+		bxx += cx*cx
+		bxy += cx*cy
+		byy += cy*cy
+	}
+
+	// Characteristic polynomial of a 2x2 matrix:
+	// f(L) = L * L - (Trace(M))L + Determinant(M), where M = matrix, L = eigenvalues
+	T = bxx + byy						//Trace of the covariance matrix
+	D = bxx*byy - bxy*bxy				//Determinant of the covariance matrix
+
+	L1 = T/2 + Math.sqrt(T*T/4 - D)			// Calculate the eigenvalue with a higher magnitude
+	L2 = T/2 - Math.sqrt(T*T/4 - D)			// Calculate eigenvalue with a lower magnitude
+
+	x1 = L2 - byy							// Eigenvector x coordinate (direction) corresponding to the smaller eigenvalue L2
+	x2 = L1 - byy							// Eigenvector x coordinate (direction) corresponding to the larger eigenvalue L1
+
+	// Calculate the major/minor axis distortion parameter to measure cell shape
+	shape = L1 / L2
+	//console.log(id + "\t" + "shortest axis x1:" + "\t" + L2 + "longest axis x2:" + "\t" + L1 )
+	let distortion = this.C.cells[id].distortion
+	distortion.push(shape) 
+	
+	if (distortion.length == 100){
+		let avg_distortion = 0
+		for (let i of distortion){
+			avg_distortion += i 
+		}
+
+		avg_distortion = avg_distortion / 100
+		this.C.cells[id].avgDistortion = avg_distortion
+		this.C.cells[id].distortion = []
 	}
 }
 
