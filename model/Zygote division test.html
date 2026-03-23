@@ -177,6 +177,31 @@ class Blastomeres extends CPM.Cell {
 }
 
 
+/** A class encoding a subcell capable of being part of a SuperCell
+ *  Intended to be used with SuperCell and SubCellConstraint
+ */
+class Lumen extends CPM.Cell {
+
+	/** The constructor of class SuperCell.
+	 * @param {object} conf - configuration settings of the simulation, containing the
+	 * relevant parameters. Note: this should include all constraint parameters.
+	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
+	 * when parameters are not explicitly overwritten
+	 * @param {CellId} id - the CellId of this cell (its key in the CPM.cells), unique identifier
+	 *  @param {CPMEvol} C - the CPM - used among others to draw random numbers
+	 * */
+	constructor (conf, kind, id, C) {
+		super(conf, kind, id, C)
+
+		/** encode cell-specific target volume for a simple growth algorithm such that the V can be altered upon division
+		 * @type{Number}
+		*/
+		this.V = this.conf["V"][kind]
+
+	}
+}
+
+
 /*	----------------------------------
 	CONFIGURATION SETTINGS
 	----------------------------------
@@ -191,11 +216,11 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 1,							// Seed for random number generation.
+		seed : 2,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
-		CELLS : ["empty", Blastomeres],
+		CELLS : ["empty", Blastomeres, Lumen],
 		
 		// Constraint parameters. 
 		// Mostly these have the format of an array in which each element specifies the
@@ -204,13 +229,14 @@ let config = {
 		
 		// Adhesion parameters:
 		J : [ 
-		 	[0, 20],                  	// Background cell
-            [20, 10]                   	// Blastomere 
+		 	[0, 20, 80],                  	// Background cell
+            [20, 10, 5],                   	// Blastomeres
+			[80, 5, 2],                   	// Lumen 
 		],
 		
 		// VolumeConstraint parameters
-		LAMBDA_V : [0,50],				// VolumeConstraint importance per cellkind
-		V : [0,5000],					// Target volume of each cellkind
+		LAMBDA_V : [0,50,50],				// VolumeConstraint importance per cellkind
+		V : [0,5000, 30],					// Target volume of each cellkind
 
 		// Cell growth parameters (post-cleavage divisions):
 		// If (target volume - current volume) is < VOLCHANGE_THRESHOLD, 
@@ -220,8 +246,8 @@ let config = {
 		PERSTEP : [0, 0.0042],
 
 		// PerimeterConstraint parameters
-		LAMBDA_P:[0,2],				    // PerimeterConstraint importance per cellkind
-		P: [0,900] 				    	// Target perimeter of each cellkind		
+		LAMBDA_P:[0,2,2],				    // PerimeterConstraint importance per cellkind
+		P: [0,900,15] 				    	// Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -229,16 +255,16 @@ let config = {
 	simsettings : {
 	
 		// Cells on the grid
-		NRCELLS : [1],						// Number of cells to seed for all non-background cellkinds.
+		NRCELLS : [1, 0],						// Number of cells to seed for all non-background cellkinds.
 		BURNIN : 100,
 		RUNTIME : 1000,
 		RUNTIME_BROWSER : "Inf",
 		
 		// Visualization
 		CANVASCOLOR : "EEEEEE",
-		CELLCOLOR : ["000000"],
-		SHOWBORDERS : [true],				// Should cellborders be displayed?
-		BORDERCOL : ["DDDDDD"],				// color of the cell borders
+		CELLCOLOR : ["000000", "0000FF"],
+		SHOWBORDERS : [true, true],				// Should cellborders be displayed?
+		BORDERCOL : ["DDDDDD", "DDDDDD"],				// color of the cell borders
 		zoom : 2,							// zoom in on canvas with this factor.
 		
 		// Output images
@@ -286,7 +312,8 @@ function initialize(){
 		resetButton : resetButton,
 		weighted_random : weighted_random,
 		cellShape : cellShape,
-		cellGrowth : cellGrowth
+		cellGrowth : cellGrowth,
+		cavitation : cavitation
 		
 	 }
 	sim = new CPM.Simulation( config, custommethods )
@@ -348,7 +375,8 @@ function postMCSListener(){
 	// Check the perimeter every 50 MCS and every time a cell has divided
 	if (sim.C.time % 50 == 0 || cells > old_cells){
 		let bg_borderpixels = this.backgroundBorderpixelCounter()
-		this.perimeterCounter(bg_borderpixels)
+		//console.log(bg_borderpixels)
+		//console.log(this.perimeterCounter(bg_borderpixels))
 		old_cells = cells
 	}
 
@@ -366,14 +394,18 @@ function postMCSListener(){
 			this.cellShape(i)
 		}
 	}
-
+/*
 	if (cells >= 16 && cells < 32){
 		this.cellGrowth()
+	}
+	*/
+	if (sim.time == 100){
+		this.cavitation()
 	}
 }
 
 
-// Count the number of non-background cells on the grid	
+// Count the number of blastomeres on the grid	
 function cell_number(){
 	let nr_cells = 0
 	for( let i of this.C.cellIDs() ){
@@ -463,8 +495,7 @@ function zygoteDivision (){
 		max_loop = largest_cells.length
 
 		for( let i = 0; i < max_loop; i++ ){
-			// Randomly generate integer j to select cellId for cell division, serves as local minimum time interval for division
-			// Includes a max time elapsed parameter 
+			// Randomly generate integer j to select cellId for cell division, also serves as local minimum time interval for division
 			if ( this.C.random() < 0.005 ){
 				j = this.C.ran(0, max_loop - 1)
 				random_cell = largest_cells[j]
@@ -511,7 +542,7 @@ function zygoteDivision (){
 }
 
 
-// Counts the number of unique background borderpixels for every cellId
+// Counts the number of unique background borderpixels for every cellId with cellKind == 1
 function backgroundBorderpixelCounter(){
 
 	let cellborderpixels = { }
@@ -521,13 +552,14 @@ function backgroundBorderpixelCounter(){
 		// corresponding value an array with all the borderpixels of that 
 		// cell. Each pixel is stored by its ArrayCoordinate.
 	for( let [arraycoord,id] of this.C.cellBorderPixels() ){
-		if( !cellborderpixels[id] ){
-			cellborderpixels[id] = [arraycoord]
-		} else {
-			cellborderpixels[id].push( arraycoord )
+		if (this.C.cellKind(id) == 1 ){
+			if( !cellborderpixels[id] ){
+				cellborderpixels[id] = [arraycoord]
+			} else {
+				cellborderpixels[id].push( arraycoord )
+			}
 		}
 	}
-	
 	//console.log( "borderpixels")
 	//console.log(cellborderpixels)
 
@@ -636,19 +668,18 @@ function compaction(){
 	if (nr_cells == 6) {
 		for( let i of this.C.cellIDs() ){
 			if( this.C.cellKind( i ) == 1 ){		
-				this.C.cells[i].conf["J"] = [[0,80], [80,10]]
+				this.C.cells[i].conf["J"] = [[0,80,80], [80,10,5], [80,5,2]]
 			}
 		}
 	}	
 }
 
-// 
-function polarization(){
-	let bg_borderpixels = this.backgroundBorderpixelCounter()
-
 	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value
 	// based on the localization of the cell in the embryo. 
 	// Polarization occurs gradually for the outer cells to mimic asynchronous polarization in vivo
+function polarization(){
+	let bg_borderpixels = this.backgroundBorderpixelCounter()
+
 	for (let cellid in bg_borderpixels){
 		 //console.log(bg_borderpixels[cellid])
 		if (bg_borderpixels[cellid].length > 0 ){
@@ -797,6 +828,12 @@ function divideCell(id){
 	return nid
 }
 
+	//Initialize lumen formation by seeding microlumens at the morula stage
+function cavitation(){
+	this.gm.seedCellAt( 2, [this.C.extents[0]/2, this.C.extents[1]/2] )   
+
+}
+
 
 // Custom drawing function 
 function drawCanvas(){
@@ -805,18 +842,20 @@ function drawCanvas(){
 
 	// Clear canvas
 	this.Cim.clear( this.conf["CANVASCOLOR"] || "FFFFFF" )
-	let nrcells=this.conf["NRCELLS"], cellkind, cellborders = this.conf["SHOWBORDERS"]
-	
-
+	let nrcells=this.conf["NRCELLS"], cellborders = this.conf["SHOWBORDERS"]
 
 	// Loop over all cell types and colour them + their borders
-	for( cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
-		this.Cim.drawCells( cellkind+1, "000000")
-
-		// Specific cell Id visualization  (requires specific cell Id input on Lineage Trace Cell Id <input>)
+	for(let cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		if (cellkind == 0){
+			this.Cim.drawCells( cellkind + 1, "000000")
+		}
+		if (cellkind == 1){
+			this.Cim.drawCells( cellkind + 1, "4169E1")
+		}
+		// Specific cell Id visualization (requires specific cell Id input on Lineage Trace Cell Id <input>)
 		// Error catcher is included for when the cell Id does not yet exist
 		try {	
-			if (sim.C.trace_cellid > 0){
+			if (sim.C.trace_cellid > 0 && this.C.cellKind(sim.C.trace_cellid) == 1 ){
 					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[sim.C.trace_cellid]], "00FF00" ) 
 				}
 		} catch (err){
@@ -837,8 +876,8 @@ function drawCanvas(){
 			//console.log("Cell Id does not exist or cannot be visualized")
 		}
 
-		// Polarization visualization  (requires checkbox on html to be checked)
-		// Error catcher is included for when polarization has not occured yet		
+		// Polarization visualization (requires checkbox on html to be checked)
+		// Error catcher is included for when polarization has not yet occured 		
 		try {
 			if (sim.drawPolarColors){
 				for (let i of this.C.cellIDs()){
@@ -851,9 +890,14 @@ function drawCanvas(){
 			//console.log("Cell Id does not exist or cannot be visualized")
 		}
 
-		// Draw borders if required
-		if ( cellborders[cellkind] ){
-			this.Cim.drawCellBorders( cellkind+1, "c30101" )
+		// Draw cell borders if required for blastomere / lumen
+		for( let cell = 0; cell < nrcells.length; cell ++ ){
+			if ( cellborders[cell] && cell == 0 ){
+				this.Cim.drawCellBorders( cell + 1, "c30101" )
+			}
+			if ( cellborders[cell] && cell == 1 ){
+			this.Cim.drawCellBorders( cell + 1, "151B54" )
+			}
 		}
 	}
 }
