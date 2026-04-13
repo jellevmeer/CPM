@@ -36,7 +36,7 @@ td {
 
 class Blastomeres extends CPM.Cell {
 
-	/** The constructor of class SuperCell.
+	/** The constructor of class Blastomere.
 	 * @param {object} conf - configuration settings of the simulation, containing the
 	 * relevant parameters. Note: this should include all constraint parameters.
 	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
@@ -130,7 +130,7 @@ class Blastomeres extends CPM.Cell {
 		this.parentId = parent.parentId.slice()
 		this.parentId.push(parent.id)
 
-		// Volume of the daughter and the parent cell is halved after division with a possible 15% variation
+		// Volume of the daughter and the parent cell is halved after division with a possible 5% variation
 		// Perimeter of the daughter and the parent cell is also changed after division
 		let V = parent.V
 		let P = parent.P
@@ -169,7 +169,6 @@ class Blastomeres extends CPM.Cell {
 			parent.initialP = P * 0.70	+ per_dev		
 	
 		}
- 	
 		//Inherit polarization of parent cellIds 
 		this.Polarized = parent.Polarized
 	}
@@ -195,7 +194,8 @@ class Blastomeres extends CPM.Cell {
 		//Change cellKind of the selected cell
 		this.C.setCellKind(id, kind)
 		//cell = new this.conf["CELLS"][kind](this.conf, kind, id, this)
-		this.C.cells[id] = new this.conf["CELLS"][kind](this.conf, kind, id, this)
+		
+		this.C.cells[id] = new this.conf["CELLS"][kind](this.conf, kind, id, this.C)
 
 	
 		// Add the original parameters back to the new cell, but this shouldn't overwrite
@@ -255,7 +255,7 @@ class Lumen extends CPM.Cell {
 		*/
 		this.parentId = [-1]
 	}
-/*	
+/*
 	birth(parent){
 		super.birth(parent)
 		this.parentId = parent.parentId.slice()
@@ -274,7 +274,7 @@ class Lumen extends CPM.Cell {
  */
 class TE extends Blastomeres {
 
-	/** The constructor of class SuperCell.
+	/** The constructor of class TE.
 	 * @param {object} conf - configuration settings of the simulation, containing the
 	 * relevant parameters. Note: this should include all constraint parameters.
 	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
@@ -284,7 +284,52 @@ class TE extends Blastomeres {
 	 * */
 	constructor (conf, kind, id, C) {
 		super(conf, kind, id, C)
+
+		//this.V = this.conf["V"][kind]
+		//this.P = this.conf["P"][kind]
+
+		/** Encode cell-specific target volume for a cell growth algorithm 
+		 *  based on the initial target V when the cell is created
+		 * @type{Number}
+		*/
+		//this.initialV = this.V 
+
+		/** encode cell-specific target perimeter for a simple growth algorithm 
+		 * which is based on the initial target P when the cell is created
+		 * @type{Number}
+		*/
+		//this.initialP = this.P
+
+		/** encode cell-specific counter if it is mistakingly internalized post-cavitiation
+		 * @type{Number}
+		*/
+		this.internalCounter = 0
+
+		/** encode cell-specific division state
+		 * @type{Number}
+		*/
+		this.divisionState = 0
+
 	}
+	/**
+	 *  Halves target volume and adds parent cell id to this.parentId to track cell lineages
+	 * @param {Cell} parent - the parent (or other daughter) cell
+	 */ 
+
+	/*
+	birth(parent){
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+		// Volume and perimeter of the daughter and the parent cell is kept the same after division
+		 this.V = parent.V
+		let initialV = parent.V
+		 this.P = parent.P
+		let initialP = parent.P
+
+		//Inherit polarization of parent cellIds 
+		this.Polarized = parent.Polarized
+	}
+*/
 }
 
 /** A class encoding the inner cell mass (ICM)
@@ -303,6 +348,21 @@ class ICM extends Blastomeres {
 		super(conf, kind, id, C)
 
 	}
+	
+	birth(parent){
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+
+		// Volume and perimeter of the daughter and the parent cell is kept the same after division
+		this.V = parent.V
+		let initialV = parent.V
+		this.P = parent.P
+		let initialP = parent.P
+
+		//Inherit polarization of parent cellIds 
+		this.Polarized = parent.Polarized
+	}
+		
 }
 
 
@@ -320,8 +380,8 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 3,							// Seed for random number generation.
-		T : 50,								// CPM temperature
+		seed : 2,							// Seed for random number generation.
+		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
 		CELLS : ["empty", Blastomeres, Lumen, TE, ICM],
@@ -335,9 +395,9 @@ let config = {
 		J : [ 
 		 	[0, 20, 1000, 20, 120],                  	// Background cell
             [20, 15, 20, 1, 1],                   	// Blastomeres
-			[1000, 20, 18, 20, 10],                   	// Lumen 
-			[20, 1, 20, 0, 5],						// TE
-			[120, 1, 10, 5, 3]							// ICM
+			[1000, 20, 18, 20, 40],                   	// Lumen 
+			[20, 1, 20, 0, 20],						// TE
+			[120, 1, 40, 20, 1]							// ICM
 		],
 		
 		// VolumeConstraint parameters
@@ -348,12 +408,12 @@ let config = {
 		// If (target volume - current volume) is < VOLCHANGE_THRESHOLD, 
 		// target volume for a cell is increased by VOLSTEP
 		VOLCHANGE_THRESHOLD : 10,
-		VOLSTEP : [0, 0.01, 0.1, 0.01, 0.01],
-		PERSTEP : [0, 0.0042, 0.1, 0.0042, 0.0042],
+		VOLSTEP : [0, 0.01, 0.01, 0.01, 0.01],
+		PERSTEP : [0, 0.0042, 0.025, 0.005, 0.005],
 
 		// PerimeterConstraint parameters
-		LAMBDA_P:[0,2, 2, 2, 2],				    // PerimeterConstraint importance per cellkind
-		P: [0,900, 80, 100, 100] 				    	// Target perimeter of each cellkind		
+		LAMBDA_P:[0,2, 0, 1, 5],				    // PerimeterConstraint importance per cellkind
+		P: [0,900, 200, 100, 100] 				    	// Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -370,6 +430,8 @@ let config = {
 		CANVASCOLOR : "EEEEEE",
 		CELLCOLOR : ["000000", "0000FF", "6F2DA8", "ED7117"],
 		SHOWBORDERS : [true, true, true, true],					// Should cellborders be displayed?
+		//SHOWBORDERS : [true, false, false, false],					// Should cellborders be displayed?
+
 		BORDERCOL : ["DDDDDD", "DDDDDD", "DDDDDD", "DDDDDD"],	// color of the cell borders
 		zoom : 2,												// zoom in on canvas with this factor.
 		
@@ -420,10 +482,12 @@ function initialize(){
 		weighted_random : weighted_random,
 		cellShape : cellShape,
 		cellGrowth : cellGrowth,
+		cellDivision : cellDivision,
 		cavitation : cavitation,
 		arrayShuffle : arrayShuffle,
 		lumenGrowth : lumenGrowth,
-		htmlSymmetricalMatrix : htmlSymmetricalMatrix
+		htmlSymmetricalMatrix : htmlSymmetricalMatrix,
+		lineageSwitch : lineageSwitch
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -440,7 +504,7 @@ function initialize(){
 
 	
 // option to draw lineages based on cellId and their daughterIds, and based on polarization
-	sim.trace_cellid = 0
+	sim.trace_cellid = []
 	sim.drawDaughterColors = false
 	sim.drawPolarColors = false
 
@@ -474,31 +538,31 @@ function initializeGrid(){
 }
 
 
-let old_cells = 0
+let old_blastomeres = 0
 let cavitationCount = 0
 /* The following custom methods will be added to the simulation object */
 function postMCSListener(){
+	let total_cells = this.cell_number([1, 3, 4])
+
 	if(sim.time == 0){
 		this.htmlSymmetricalMatrix()
 	}
 
 	this.zygoteDivision()
 
-	let cells = this.cell_number()
-
 	// Check the perimeter every 50 MCS and every time a cell has divided
-	if (sim.C.time % 50 == 0 || cells > old_cells){
+	if (sim.C.time % 50 == 0 || total_cells > old_blastomeres){
 		//let bg_borderpixels = this.backgroundBorderpixelCounter(borderPixelCounter(1))
 		//console.log(bg_borderpixels)
 		//console.log(this.perimeterCounter(bg_borderpixels))
-		old_cells = cells
+		old_blastomeres = total_cells
 	}
 
-	if (cells == 6){
+	if (total_cells == 6){
 	this.compaction()
 	}
 
-	if (cells > 5){
+	if (total_cells > 5){
 	this.polarization()
 	}
 
@@ -509,11 +573,14 @@ function postMCSListener(){
 		}
 	}
 
-	if (cells >= 16 && cells < 32 && cavitationCount > 0){
-		this.cellGrowth()
+	// Allow for ICM divisions during blastocoel expansion
+	let total_icm = this.cell_number([4])
+	/*
+	if (total_cells > 16 && total_icm < 8 && this.C.cells[17].V > 5000){
+		this.cellDivision()
 	}
-	
-	if (cells >= 16&& cavitationCount < 1 && div_time > 50){
+	*/
+	if (total_cells >= 16&& cavitationCount < 1 && div_time > 50){
 		this.cavitation()
 		cavitationCount++
 
@@ -522,14 +589,16 @@ function postMCSListener(){
 	// First differentiation event
 	// Loop over all cellIds, if they are polarized assign them to the TE class, if they are Apolar they become ICM
 	// Not yet polarized cells are differentiated based on their position in the embryo
-	if (cells == 16){
+	if (total_cells == 16){
 		for( let i of this.C.cellIDs()){
 			if (this.C.cellKind(i) == 1){
 				if( this.C.cells[i].Polarized == "Polar"){		
 					this.C.cells[i].newCellID(i,3)
 				} else if (this.C.cells[i].Polarized == "Apolar"){
 					this.C.cells[i].newCellID(i, 4)
-				} else if (this.C.cells[i].Polarized == "not yet"){
+				}
+				// Additional control due to polarization condition being randomly assigned with a delay
+				else if (this.C.cells[i].Polarized == "not yet"){
 					let bg_borderpixels = this.backgroundBorderpixelCounter(this.borderPixelCounter(1))		
 					if (bg_borderpixels[i].length > 0 ){
 						this.C.cells[i].Polarized = "Polar"
@@ -541,25 +610,39 @@ function postMCSListener(){
 				}	
 			}
 		}
-	}
-	let nr_lumen = 0
-	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind(i) == 2 ){		
-			nr_lumen++
-		}
-	}	
-	if (cells >= 16 ){ //&& nr_lumen < 16
+	} 
+
+	// Lumen growth & TE cell divisions
+	let total_te = this.cell_number([3])
+	if (total_cells >= 16 ){ 
 		this.lumenGrowth()
+		this.lineageSwitch()
+
+		for( let i of this.C.cellIDs() ){
+			if( this.C.cellKind( i ) == 2 ){		
+				if (this.C.cells[i].V > 2000 && total_te < 14 && cavitationCount > 0){
+					this.cellGrowth()	
+				}
+			}
+		}
 	}
 }
 
+	/**
+	 * Count the number of cells present on the grid for one or a combination of cellkinds
+	 * @param {Array} cellkinds - the cellkind of this cell, the parameters of kind are used 
+	 * @return {Number}  Total number of cells for specified cellkinds
+	 */ 
 
-// Count the number of cells on the grid (excluding lumen cell)
-function cell_number(){
+function cell_number(cellkinds){
 	let nr_cells = 0
+
 	for( let i of this.C.cellIDs() ){
-		if( this.C.cellKind(i) == 1 || this.C.cellKind(i) == 3 || this.C.cellKind(i) == 4 ){		
-			nr_cells++
+		for (let kind of cellkinds){
+
+			if( this.C.cellKind(i) == kind){		
+				nr_cells++
+			}
 		}
 	}	
 	return nr_cells
@@ -642,7 +725,7 @@ function zygoteDivision (){
 		}	
 	}
 
-	let total_cells = this.cell_number()
+	let total_cells = this.cell_number([1, 3, 4])
 
 	// Dividing function for cells with the largest volume, the function divides up to a predefined total cell number
 	if( total_cells < 16 && div_time >= 100){
@@ -671,9 +754,9 @@ function zygoteDivision (){
 			}
 
 			// Visual check random number, chosen cellId + what cell is divided, and how this changes the largest_cells array
-			//console.log(largest_cell_list + "\t" + "all the big cells in function"+ "\t" + sim.time)
+		//	console.log(largest_cell_list + "\t" + "all the big cells in function"+ "\t" + sim.time)
 			//console.log(j + "\t" + sim.time)
-			//console.log(random_cell + "\t" + "save me"+ "\t" + sim.time)
+		//	console.log(random_cell + "\t" + "save me"+ "\t" + sim.time)
 
 			// contains all parent cell ids that have divided
 			divided_cells.push(random_cell)
@@ -684,7 +767,7 @@ function zygoteDivision (){
 			largest_cell_list.splice(j, 1)
 			largest_V_slice --
 			
-			//console.log(largest_cells + "\t" + "after splicing me, length array is:" + "\t" + largest_cells.length)
+		//	console.log(largest_cell_list + "\t" + "after splicing me, length array is:" + "\t" + largest_cell_list.length)
 
 			// Reset minimum division time 
 			if (largest_cell_list.length == 0){
@@ -699,7 +782,6 @@ function zygoteDivision (){
 
 	}
 }
-
 
 	// This iterator returns coordinates and cellid for all non-background border pixels on the grid. 
 	// This function creates an object with a key for each cell on the grid, and as
@@ -780,21 +862,21 @@ function perimeterCounter(neigh_borderpixels){
 	return perimeter
 }
 
-
-	// Increase the target volume and perimeter of all cells on the grid
-	// Cell divides once it has grown to 1.75-2.25x its initial size
-function cellGrowth(){
+	//Divide cells post-cavitation with a cell-shape requirement and a volume conditional to prevent excessive division of one cell
+function cellDivision(){
 	for( let i of this.C.cellIDs() ){
 		if (typeof i === "string"){
 			i = Number(i)
 		}
-		if( this.C.cellKind(i) == 3 || this.C.cellKind(i) == 4){
-			let cell = this.C.cells[i]
+		let cell = this.C.cells[i]
+
+		//this.C.cellKind(i) == 4 || 
+		if((this.C.cellKind(i) == 4)){
 			// Assign a max volume of 1.25-1.75x to each cell, as a division requirement
 			if (cell.maxVol == 0){
-				cell.maxVol = this.C.ran(125, 175) / 100
+				cell.maxVol = this.C.ran(175, 225) / 100
 			}
-			if (cell.V >= (cell.maxVol * cell.initialV)){
+	//		if (cell.V >= (cell.maxVol * cell.initialV)){
 				// Elongated cell shape increases the chance of mitosis
 				let random = 0.01 * cell.avgDistortion
 				if (this.C.random() < random){
@@ -803,8 +885,61 @@ function cellGrowth(){
 					let lastnewdiv = this.divideCell(i)
 					cell.nDiv ++
 					cell.maxVol = 0
+					cell.avgDistortion = 0
 					this.C.cells[lastnewdiv].nDiv ++
 					this.C.cells[lastnewdiv].maxVol = 0
+					this.C.cells[lastnewdiv].avgDistortion = 0
+
+
+					// Add daughter cellIds to all parent cells, by looping over the parent cell
+					// and adding the daughter ID to each one
+					for (let i = 1; i < this.C.cells[lastnewdiv].parentId.length; i++){
+						let cellid = this.C.cells[lastnewdiv].parentId[i]
+						this.C.cells[cellid].daughterId.push(lastnewdiv) 
+					}
+					console.log(sim.time + "\t" + i + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V)
+				}
+
+	/*		} else if (cell.V < (cell.maxVol * cell.initialV)) {
+			// Constant increase of cell volume and perimeter based on value just after division
+			// Minimum division time is inherently included by VOLSTEP/PERSTEP percentages	
+				if (cell.V-this.C.getVolume(i) < this.C.conf["VOLCHANGE_THRESHOLD"]){
+					cell.V += cell.initialV * this.C.conf["VOLSTEP"][cell.kind]
+					cell.P += cell.initialP * this.C.conf["PERSTEP"][cell.kind]
+				} 	
+			}
+	*/			
+		}
+	}	
+}
+
+	// Increase the target volume and perimeter of all cells on the grid
+	// Cell divides once it has grown to 1.75-2.25x its initial size
+function cellGrowth(){
+	for (let i of this.C.cellIDs()){
+		if (typeof i === "string"){
+			i = Number(i)
+		}
+		let cell = this.C.cells[i]
+//this.C.cellKind(i) == 4 || 
+		if ((this.C.cellKind(i) == 3) && cell.avgDistortion > 4.5){
+			// Assign a max volume of 1.25-1.75x to each cell, as a volume target for division
+			if (cell.maxVol == 0){
+				cell.maxVol = this.C.ran(175, 225) / 100
+			}
+			if (cell.V >= (cell.maxVol * cell.initialV)){
+				//	An elongated cell shape increases the chance of mitosis
+				let random = 0.01 * cell.avgDistortion
+				if (this.C.random() < random){
+					// Divide a cell and increase nDiv for parent and daughter cellId
+					// Also reset the maxVol and avgDistortion for each cell
+					let lastnewdiv = this.divideCell(i)
+					cell.nDiv ++
+					cell.maxVol = 0
+					cell.avgDistortion = 0
+					this.C.cells[lastnewdiv].nDiv ++
+					this.C.cells[lastnewdiv].maxVol = 0
+					this.C.cells[lastnewdiv].avgDistortion = 0
 
 					// Add daughter cellIds to all parent cells, by looping over the parent cell
 					// and adding the daughter ID to each one
@@ -828,14 +963,12 @@ function cellGrowth(){
 }
 
 	// Lumen grows every MCS by VOLSTEP / PERSTEP
-function lumenGrowth(){
+function lumenGrowth(maxVol = 10000){
 	for( let i of this.C.cellIDs() ){
 		if( this.C.cellKind(i) == 2 ){
 			let cell = this.C.cells[i]
 			if (cell.maxVol == 0){
-				cell.maxVol = 5000
-				//cell.maxVol = 2
-
+				cell.maxVol = maxVol
 			}
 
 			if (cell.V < cell.maxVol){
@@ -862,7 +995,7 @@ function lumenGrowth(){
 
 // Change the adhesion perimeters for blastomere cells to mimic compaction, at n = 6 blastomeres
 function compaction(){
-	let nr_cells = this.cell_number()
+	let nr_cells = this.cell_number([1])
 
 	//Change all J parameters in conf to increase compaction
 	if (nr_cells == 6) {
@@ -880,9 +1013,8 @@ function compaction(){
 		adhesion2.value = sim.C.conf.J[1][0]
 	}
 
-	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value
-	// based on the localization of the cell in the embryo. 
-	// Polarization occurs gradually for the outer cells to mimic asynchronous polarization in vivo
+	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value based on the localization of the cell in the embryo. 
+	// Polarization occurs gradually for the outer cells similar to asynchronous polarization in vivo
 function polarization(){
 	let bg_borderpixels = this.backgroundBorderpixelCounter(this.borderPixelCounter(1))
 
@@ -898,6 +1030,25 @@ function polarization(){
 		// Asymmetrically divided and subsequently internalized cells get reassigned to the Apolar class
 		if (bg_borderpixels[cellid].length == 0 && this.C.cells[cellid].Polarized == "Polar"){
 			this.C.cells[cellid].Polarized = "Apolar"
+		}
+	}
+}
+
+
+	// Reassign internalized TE cells to Apolar and change their class to ICM after a specific MCS period
+function lineageSwitch(){
+	
+	let bg_borderpixels_te = this.backgroundBorderpixelCounter(this.borderPixelCounter(3))
+	for (let cellid of Object.keys(bg_borderpixels_te)){
+		if (bg_borderpixels_te[cellid].length == 0 && this.C.cells[cellid].Polarized == "Polar"){
+			this.C.cells[cellid].internalCounter++
+		}
+
+		// Asymmetrically divided and subsequently internalized cells get reassigned to the Apolar class
+		if (bg_borderpixels_te[cellid].length == 0 && this.C.cells[cellid].internalCounter > 200){
+			this.C.cells[cellid].Polarized = "Apolar"
+			this.C.cells[cellid].newCellID(cellid, 4)
+			console.log("Converted cellid" + "\t" + cellid + "\t" + "from TE to ICM following a period of internalization.")
 		}
 	}
 }
@@ -1036,15 +1187,14 @@ function divideCell(id){
 
 	//Initialize lumen formation by seeding a lumen at the morula stage
 function cavitation(){
-	let multicellular_borderpixels = []
-	let multicellular_neighbours = []
+	let bicellular_borderpixels = [], bicellular_neighbours = []
+	let multicellular_borderpixels = [], multicellular_neighbours = []
 	let cbpTE = this.borderPixelCounter(3)
 	let cbpICM = this.borderPixelCounter(4)
 
 	let cellborderpixels = {...cbpTE, ...cbpICM}
-console.log(cellborderpixels)
+	console.log(cellborderpixels)
 	//loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel 
-	//this assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
 	for (let cellid in cellborderpixels){
 		let cbp = cellborderpixels[cellid]
 
@@ -1056,27 +1206,41 @@ console.log(cellborderpixels)
 			let borderpixId = this.C.pixt(cbp[cellpix])				//cell Ids of borderpixels
 			let borderpixIndex= this.C.grid.p2i(cbp[cellpix])		//Index coordinates of borderpixels
 
-			let unique_ids = []
+			let unique_ids = [], te_ids = 0, icm_ids = 0
 			//loop over all neighbouring pixels and identify cellId and index belonging to neighbour pixel (Index Coordinate) 
 			for (let neighborpix of neighbours_of_borderpixel_cell) {
 				let neighbor_id = this.C.pixt( neighborpix )
 				
 				// Compares pixel values (cellIds) of neighbour pixels to the center pixel
-				// Resulting from selecting all neighbouring borderpixels, this will always be atleast 2 unique ids
-				// (own cell and neighbouring cell). If this is 3 or more unique cellids, you have found a multicellular intersection.
+				// Resulting from selecting all neighbouring borderpixels, this will always be atleast 2 unique ids (own cell and neighbouring cell). 
+				// If this is 3 or more unique cellids, you have found a multicellular intersection, else a bicellular intersection.
 				// This selection ignores multicellular junctions with the background
 				if (neighbor_id != 0 && !unique_ids.includes(neighbor_id)) {
 					unique_ids.push(neighbor_id)
 				}
+				// An extra selection is included that excludes ICM-ICM-ICM junction seeding location for blastocoel
+				if (this.C.cellKind(neighbor_id) == 4){
+					te_ids++
+				} else if (this.C.cellKind(neighbor_id) == 3){
+					icm_ids++
+				}
 			}	
 			// Add an array of the borderpixel's neighbouring pixels (with their IndexCoordinate through neighi()) to an object with 
-			// the borderpixel's index coordinate as a key. Object.values() checks if neighbouring borderpixels 
-			// are already included, to prevent non-unique borderpixels from being selected.
+			// the borderpixel's index coordinate as a key. 
 			let neigh_borderpixIndex = this.C.neighi(borderpixIndex)
-			
-			if (unique_ids.length >= 3){
-				// Loop over the array of neighbouring borderpixels located in the object.
-				// Exclude borderpixels if one of their neighbourpixels is already present somewhere in the object.
+
+			// Loop over the array of neighbouring borderpixels located in the object.
+			// Exclude borderpixels if one of their neighbourpixels is already present somewhere in the object.
+			if (unique_ids.length == 2 && te_ids >= 1 && icm_ids >= 1){
+				for (let neigh_pix of neigh_borderpixIndex){
+					if( !bicellular_neighbours.includes(neigh_pix) ){
+						bicellular_neighbours.push(neigh_pix)
+						if (!bicellular_borderpixels.includes(borderpixIndex)){
+							bicellular_borderpixels.push(borderpixIndex)
+						}
+					}
+				}
+			} else if (unique_ids.length >= 3 && te_ids >= 1 && icm_ids >= 1){
 				for (let neigh_pix of neigh_borderpixIndex){
 					if( !multicellular_neighbours.includes(neigh_pix) ){
 						multicellular_neighbours.push(neigh_pix)
@@ -1090,23 +1254,32 @@ console.log(cellborderpixels)
 	}
  
 	// Total seeding points: --> To do: make this scale with selecting indices?
+	console.log(bicellular_borderpixels)
 	console.log(multicellular_borderpixels)
 	
 	// Randomly select several indices to seed lumen at, and collect their array coordinates. 
-	// The multi variables in the while loop indicates the number of lumens that you want to seed.
-	let multiCellularSample = []
-	let sample, multi = 0
-
-	while (multi < 1){
-		sample = this.C.ran(0, (multicellular_borderpixels.length - 1))
-		multiCellularSample.push(this.C.grid.i2p(multicellular_borderpixels[sample]))
-		multi++
+	// The variable in the while loops indicates the number of lumens that you want to seed.
+	let seedingCoordinates = []
+	let sample, seeding_method, nr_lumen = 0
+	let method = this.C.ran(0, 1)
+	
+	if (method == 0){
+		seeding_method = bicellular_borderpixels
+		console.log("bicellular lumen")
+	} else if (method == 1){
+		seeding_method = multicellular_borderpixels
+		console.log("multicellular lumen")
 	}
-	console.log()
-	console.log(multiCellularSample)
+
+	while (nr_lumen < 1){
+		sample = this.C.ran(0, (seeding_method.length - 1))
+		seedingCoordinates.push(this.C.grid.i2p(seeding_method[sample]))
+		nr_lumen++
+	}
+	console.log(seedingCoordinates)
 
 	// Loop over the randomly sampled array coordinates and seed them on the grid
-	for (let coordinate of multiCellularSample){
+	for (let coordinate of seedingCoordinates){
 		this.gm.seedCellAt(2, coordinate)   
 	}
 
@@ -1138,24 +1311,28 @@ function drawCanvas(){
 		}
 	}	
 		// Specific cell Id visualization (requires specific cell Id input on Lineage Trace Cell Id <input>)
+		// Allows for the visualization of multiple cellIds
 		// Error catcher is included for when the cell Id does not yet exist
 		try {	
-			if (sim.C.trace_cellid > 0 ){
-				sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[sim.C.trace_cellid]], "00FF00" ) 
+			if (sim.C.trace_cellid[0] > 0 || sim.C.trace_cellid.length > 1){
+				for(let cell of sim.C.trace_cellid){
+					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[cell]], "00FF00") 
+				}	
 			}
 		} catch (err){
 			//console.log("Cell Id input error")
 		}
 
 		// Daughter cell Id visualization  (requires checkbox on html to be checked)
-		// Error catcher is included for when the cell Id does not yet exist		
+		// Error catcher is included for when the cell Id does not yet exist	
 		try {
 			if (sim.drawDaughterColors){
-				let daughters = this.C.cells[sim.C.trace_cellid].daughterId 
-				
-				for (let i of daughters){
-					sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "00FF00" ) 
-				}
+				for (let cell of sim.C.trace_cellid){
+					let daughters = this.C.cells[cell].daughterId 
+					for (let i of daughters){
+						sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "00FF00" ) 
+					}
+				}	
 			}
 		} catch (err){
 			//console.log("Cell Id does not exist or cannot be visualized")
@@ -1186,9 +1363,7 @@ function drawCanvas(){
 			}	else if ( cellborders[cell] && cell == 3 ){
 			this.Cim.drawCellBorders( cell + 1, "c30101" )
 			}
-
 		}
-	
 }
 
 
@@ -1226,7 +1401,6 @@ function resetButton(){
 }
 
 function htmlSymmetricalMatrix(){
-	console.log("does this work?")
 	
 	// Initialization: looping over the adhesion matrix and assigning conf.J values to the html table
 	for (let i = 0 ; i < this.C.conf.J.length; i++){
@@ -1241,18 +1415,37 @@ function htmlSymmetricalMatrix(){
 				let td_id_row = e.target.id.substring(1,2)
 				let td_id_col = e.target.id.substring(2,3)
 				sim.C.conf.J[td_id_row][td_id_col]=sim.C.conf.J[td_id_col][td_id_row]=parseInt(e.target.value)
-				console.log(e.target.id + "\t" + "changed")
+				//console.log(e.target.id + "\t" + "changed")
 
 				// Html table updater when changed td is not on a diagonal 
 				if(td_id_row != td_id_col){
 					let target2 = "j" + col + row
 					let adhesion2 = document.getElementById(target2)
 					adhesion2.value = sim.C.conf.J[td_id_col][td_id_row]	
-					console.log("and so did" + "\t" + target2)
+					//console.log("and so did" + "\t" + target2)
+				}
+				if(parseInt(e.target.value) < 0){
+					throw("The adhesion matrix in this model is only intended for positive or zero adhesion values")
 				}
 			})
 		}	
 	}
+}
+
+	// Transfer input from html box to sim.C varaible in order to colour specific cellIds with drawCanvas() 
+	// Example input = "2, 3" to visualize cell Id 2 and 3
+function storeInput(){
+	let inputArray = []
+	const lineageTrace = document.getElementById("lineage")	
+	let lin = lineageTrace.value
+	let lineageValue = lineageTrace.value.split(", ")
+	// Loop over the html input and assign the numerical value to an array for visualization 
+	for (let value of lineageValue){
+		let numericValue =  parseInt(value)
+			inputArray.push(numericValue)
+	
+	}
+	sim.C.trace_cellid = inputArray
 }
 
 </script>
@@ -1265,15 +1458,15 @@ function htmlSymmetricalMatrix(){
 </p>
 <p>
 <button onclick="resetButton()">Reset</button>
-<button onclick="toggleAnim()">Pause</button></p>
+<button onclick="toggleAnim()">Pause</button>
+</p>
 
 <div class="slidecontainer">
 <form autocomplete="off">
 <table>
 <tr>
-	<td>Lineage Trace Cell Id</td><td>
-	<input type="text" min="1" id="lineage" placeholder="Cell Id"
-	value=0 oninput="sim.C.trace_cellid=parseInt(this.value)">
+	<td>Lineage Trace Cell Ids <br> (Comma-separated Ids)</td><td>
+	<input type="text"  id="lineage" placeholder="Cell Id(s)" oninput="storeInput()">
 	</td>
 </tr>
 
