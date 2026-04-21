@@ -195,16 +195,14 @@ class Blastomeres extends CPM.Cell {
 		this.C.setCellKind(id, kind)
 		//cell = new this.conf["CELLS"][kind](this.conf, kind, id, this)
 		
-		this.C.cells[id] = new this.conf["CELLS"][kind](this.conf, kind, id, this.C)
+		this.C.cells[id] = new this.conf["CELLS"][kind](this.conf, kind, id, this.C)		
 
-		//Change this to this.C.conf?
-	
 		// Add the original parameters back to the new cell, but this shouldn't overwrite
 		// some of the conf parameters.
 		this.C.cells[id].P = object.P, this.C.cells[id].Polarized = object.Polarized, this.C.cells[id].V = object.V, this.C.cells[id].avgDistortion = object.avgDistortion,
 		this.C.cells[id].daughterId = object.daughterId, this.C.cells[id].parentId = object.parentId, this.C.cells[id].distortion = object.distortion, 
 		this.C.cells[id].initialP = object.initialP, this.C.cells[id].initialV = object.initialV, this.C.cells[id].maxVol = object.maxVol, this.C.cells[id].nDiv = object.nDiv
-		
+
 	}
 }
 
@@ -458,7 +456,46 @@ class ICM extends Blastomeres {
 		//Inherit polarization of parent cellIds 
 		this.Polarized = parent.Polarized
 	}
-	 */	
+	 
+	birth(parent){
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+
+		let V = parent.V, P = parent.P
+		let maxPercentageDev = 5
+		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
+		let vol_dev = (delta_VP * V/2)
+		let per_dev = (P * 0.50 * delta_VP)
+		let j = this.C.ran(0, 1)
+
+		if (j == 0){
+			this.V = Math.round(V / 2 + vol_dev)
+			this.initialV = Math.round(V / 2 + vol_dev)
+
+			parent.V = Math.round(V / 2 - vol_dev)
+			parent.initialV = Math.round(V / 2 - vol_dev)
+
+			this.P = P * 0.50 + per_dev
+			this.initialP = P * 0.50 + per_dev
+
+			parent.P = P * 0.50 - per_dev
+			parent.initialP = P * 0.50 - per_dev
+
+		}
+		if (j == 1){
+			this.V = Math.round(V / 2 - vol_dev)
+			this.initialV = Math.round(V / 2 - vol_dev)
+
+			parent.V = Math.round(V / 2 + vol_dev)
+			parent.initialV = Math.round(V / 2 + vol_dev)
+
+			this.P = P * 0.50 - per_dev
+			this.initialP = P * 0.50 - per_dev
+
+			parent.P = P * 0.50	+ per_dev				
+			parent.initialP = P * 0.50	+ per_dev		
+		}
+	}	*/		
 }
 
 
@@ -507,9 +544,10 @@ let config = {
 		VOLCHANGE_THRESHOLD : 10,
 		VOLSTEP : [0, 0.01, 0.04, 0.01, 0.01],
 		PERSTEP : [0, 0.0042, 0.025, 0.005, 0.005],
+// for small icm: volstep = 0.005, perstep = 0.0065
 
 		// PerimeterConstraint parameters
-		LAMBDA_P:[0,2, 0, 1, 5],				    // PerimeterConstraint importance per cellkind
+		LAMBDA_P:[0,2, 0, 1, 2],				    // PerimeterConstraint importance per cellkind
 		P: [0,900, 200, 100, 100] 				    	// Target perimeter of each cellkind		
 	},
 	
@@ -587,7 +625,8 @@ function initialize(){
 		htmlSymmetricalMatrix : htmlSymmetricalMatrix,
 		lineageSwitch : lineageSwitch,
 		fusion : fusion,
-		disconnectedness : disconnectedness
+		disconnectedness : disconnectedness,
+		boundaryLength : boundaryLength
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -644,17 +683,11 @@ let fusionCount = 0
 let fusion_time = 999999
 
 let global_total_TE = 15
-let global_total_ICM =  8
+let global_total_ICM =  16
 /* The following custom methods will be added to the simulation object */
 function postMCSListener(){
 	let total_cells = this.cell_number([1, 3, 4])
 	let lumen_id = 0
-
-	if(sim.time % 100 == 0){
-		console.log(this.C.random())
-	}
-
-
 
 	if(sim.time == 0){
 		this.htmlSymmetricalMatrix()
@@ -694,13 +727,6 @@ function postMCSListener(){
 		}
 	}
 
-	// Allow for ICM divisions during blastocoel expansion
-	let total_icm = this.cell_number([4])
-	
-	if (total_cells > 16 && total_icm < global_total_ICM && this.C.cells[lumen_id].V > 5000){
-		//this.cellDivision()
-
-	}
 	
 	if (total_cells >= 16&& cavitationCount < 1 && div_time > 50){
 		this.cavitation()
@@ -738,26 +764,32 @@ function postMCSListener(){
 	if (total_cells >= 16 ){ 
 		this.lumenGrowth()
 		this.lineageSwitch()
-
-		if (this.C.cells[lumen_id].V > 1000 && total_te < global_total_TE && cavitationCount > 0){
-			//this.cellGrowth()	
-		}
 	
-		}
+	}
 	
 
 	if (total_cells >= 16 && cavitationCount > 0){
 		this.newCellDivision()
 	}	
-	/*
+	
+	// Fuse the lumen into one cell id
 	if (this.C.cells[lumen_id].V >= 12500 && fusionCount < 1){
 		this.fusion()
 		fusionCount++
 		fusion_time = sim.C.time
 	}
-*//*
+	if (this.C.cells[lumen_id].V == 5000){
+		this.boundaryLength()
+		this.toggleAnim()
+	}
+
 	// Calculate statistics on the fused ICM
+	
 	if (sim.C.time == (fusion_time + 1)){
+		this.boundaryLength()
+	}
+	if (sim.C.time == (fusion_time + 2)){
+
 		this.disconnectedness()
 		for(let i of this.C.cellIDs()){
 			if(this.C.cellKind(i) == 4){	
@@ -767,12 +799,11 @@ function postMCSListener(){
 				//Output - ICM split up or not(1/0)
 
 				console.log("The shape of the ICM is now:" + "\t" + this.C.cells[i].distortion)
-				//console.log("The shape of the ICM is now:" + "\t" + this.C.cells[i].avgDistortion)
 				this.toggleAnim()
 
 			}
-		}
-	}	*/
+		}	
+	}	
 }	
 
 
@@ -825,7 +856,7 @@ function weighted_random(item, weight){
 	// Shuffle an array, algorithm is a Durstenfeld shuffle (modern Fisher-Yates shuffle)
 function arrayShuffle(array){
 		for (let i = array.length - 1; i >= 1; i--){
-			let j = Math.floor(Math.random() * (i + 1));
+			let j = Math.floor(this.C.random() * (i + 1));			//Math.random is not seeded!
 			[array[i], array[j]] = [array[j], array[i]];
 		}
 		return array;
@@ -1012,38 +1043,29 @@ function perimeterCounter(neigh_borderpixels){
 	return perimeter
 }
 
-	//Divide cells post-cavitation with cell-shape influencing the speed of division
-function cellDivision(){
-	for( let i of this.C.cellIDs() ){
-		if (typeof i === "string"){
-			i = Number(i)
+	//Divide ICM cells post-cavitation to incorporate a volume difference with TE cells (since blastomeres are the same size as TE)
+function cellDivision(id){
+	let cell = this.C.cells[id]
+
+	if (this.C.cellKind(id) == 4){
+
+		// Divide a cell and increase nDiv for parent and daughter cellId
+		let lastnewdiv = this.divideCell(id)
+		cell.nDiv ++
+		cell.avgDistortion = 0
+		this.C.cells[lastnewdiv].nDiv ++
+		this.C.cells[lastnewdiv].avgDistortion = 0
+
+		// Add daughter cellIds to all parent cells, by looping over the parent cell
+		// and adding the daughter ID to each one
+		for (let i = 1; i < this.C.cells[lastnewdiv].parentId.length; i++){
+			let cellid = this.C.cells[lastnewdiv].parentId[i]
+			this.C.cells[cellid].daughterId.push(lastnewdiv) 
 		}
-		let cell = this.C.cells[i]
-
-		//this.C.cellKind(i) == 4 || 
-		if (this.C.cellKind(i) == 4){
-
-			// Elongated cell shape increases the chance of mitosis
-			let random = 0.005 * cell.avgDistortion
-			if (this.C.random() < random){
-				// Divide a cell and increase nDiv for parent and daughter cellId
-				// Also reset the maxVol for each cell
-				let lastnewdiv = this.divideCell(i)
-				cell.nDiv ++
-				cell.avgDistortion = 0
-				this.C.cells[lastnewdiv].nDiv ++
-				this.C.cells[lastnewdiv].avgDistortion = 0
-
-				// Add daughter cellIds to all parent cells, by looping over the parent cell
-				// and adding the daughter ID to each one
-				for (let i = 1; i < this.C.cells[lastnewdiv].parentId.length; i++){
-					let cellid = this.C.cells[lastnewdiv].parentId[i]
-					this.C.cells[cellid].daughterId.push(lastnewdiv) 
-				}
-				console.log(sim.time + "\t" + i + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V)
-			}
-		}
-	}	
+		console.log(sim.time + "\t" + id + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V)
+	
+	}
+		
 }
 
 	// Increase the target volume and perimeter of all cells on the grid
@@ -1132,9 +1154,9 @@ function newCellDivision(){
 		if (typeof i === 'undefined'){
 			return
 		}
-		if (i.divisionState == "Yes" && this.C.cellKind(i) == 3){
+		if (this.C.cells[i].divisionState == "Yes" && this.C.cellKind(i) == 3){
 			te_cells_tbd++
-		} else if (i.divisionState == "Yes" && this.C.cellKind(i) == 4){
+		} else if (this.C.cells[i].divisionState == "Yes" && this.C.cellKind(i) == 4){
 			icm_cells_tbd++
 		}
 	}
@@ -1150,12 +1172,15 @@ function newCellDivision(){
 			if (this.C.random() < random && cell.maxVol == 0 && (te_cells + te_cells_tbd) < global_total_TE){
 				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
+				te_cells_tbd++
 			}
-		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 7500){		
-			let random = 0.005 * cell.avgDistortion				
+		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 5000){		
+			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (icm_cells + icm_cells_tbd) < global_total_ICM){
-				cell.maxVol = this.C.ran(175, 225) / 100
+				cell.maxVol = this.C.ran(125, 150) / 100
 				cell.divisionState = "Yes"
+				icm_cells_tbd++
+				console.log("ICM division can happen")
 			}
 		}
 
@@ -1185,7 +1210,7 @@ function newCellDivision(){
 				if (cell.V-this.C.getVolume(i) < this.C.conf["VOLCHANGE_THRESHOLD"]){
 					cell.V += cell.initialV * this.C.conf["VOLSTEP"][cell.kind]
 					cell.P += cell.initialP * this.C.conf["PERSTEP"][cell.kind]
-				} 	
+				} 	// this.C.cellKind(cell.id) != 4 && for ICM 1stdivision when blastocoel is formed (ICM smaller?)
 			}
 		}	
 	}
@@ -1550,14 +1575,9 @@ function fusion(){
 		this.C.cells[icm_id].P = total_P
 	}
 
-	// Allow disconnectedness to only run once, 
-	this.fusion = function(){}
-
 	// Calculate the final shape of the ICM
 	this.C.cells[icm_id].distortion = []
 	this.C.cells[icm_id].avgDistortion = 0
-
-
 
 /*
 	// Draw a random cell to start at
@@ -1610,6 +1630,56 @@ function disconnectedness(){
 		this.C.cells[icm_id].disconnectedness = 1
 	}
 	console.log(connection_filtered)
+
+}
+
+// Calculate the boundary length between the ICM - TE and the ICM - lumen
+function boundaryLength(){
+	let icm_id = [], te_id = [], lumen_id
+	let boundaryObject = this.C.getStat(CPM.CellNeighborList)
+	console.log(boundaryObject)
+
+	for (let cell of this.C.cellIDs()){		// Breaks when there are undefined cellIds in this function due to the fusion??
+		if (this.C.cellKind(cell) == 4){
+			icm_id.push(cell)
+		} 
+		if (this.C.cellKind(cell) == 3){
+			te_id.push(cell)
+		} 	
+		if (this.C.cellKind(cell) == 2){
+			lumen_id = cell
+		} 		
+	}
+
+	let ICM_boundary = []
+	let ICM_boundary_TE = [], ICM_boundary_TE_value = 0
+	let ICM_boundary_lumen = [], ICM_boundary_lumen_value = 0
+		console.log("this is icm id", icm_id)
+		console.log("this is lumen id:", lumen_id)
+
+	// Loop over multiple ICM ids to add their total boundary length together 
+	for (let icm_cell of icm_id){
+		for (const [key, value] of Object.entries(boundaryObject)){
+			// Iterate over each ICM cell's boundaries
+			if (key == icm_cell){
+				ICM_boundary.push(value)
+
+				//Iterate over the object containing boundary lengths with each cellID and sum the boundary length with TE or lumen
+				for (const [cellid, length] of Object.entries(value)){
+					if (cellid in te_id){
+						ICM_boundary_TE.push(length)
+						ICM_boundary_TE_value += length
+					} else if (cellid == lumen_id){		// in operator does not work for only one lumen id
+						ICM_boundary_lumen.push(length)
+						ICM_boundary_lumen_value += length
+					}
+				}
+			}
+		}		
+	}
+	console.log("this is icm boundary", ICM_boundary)
+	console.log("this is icm boundary te", ICM_boundary_TE, "value:", ICM_boundary_TE_value)
+	console.log("this is icm boundary lumen", ICM_boundary_lumen, "value:", ICM_boundary_lumen_value)
 
 }
 
