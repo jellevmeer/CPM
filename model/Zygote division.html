@@ -626,7 +626,8 @@ function initialize(){
 		lineageSwitch : lineageSwitch,
 		fusion : fusion,
 		disconnectedness : disconnectedness,
-		boundaryLength : boundaryLength
+		boundaryLength : boundaryLength,
+		fusionEmbryo : fusionEmbryo
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -678,9 +679,9 @@ function initializeGrid(){
 
 
 let old_blastomeres = 0
-let cavitationCount = 0
-let fusionCount = 0
-let fusion_time = 999999
+let cavitationCount = 0, fusionCount = 0, timeCounter = 0
+let fusion_time = 999999, timeLumenGrowth = 999999
+let boundaryLengthMeasurements = 0
 
 let global_total_TE = 15
 let global_total_ICM =  16
@@ -727,7 +728,7 @@ function postMCSListener(){
 		}
 	}
 
-	
+	// Cavitation can be staggered with the div_time parameter to allow cell movement upon formation of the 16th cell prior to lumen formation
 	if (total_cells >= 16&& cavitationCount < 1 && div_time > 50){
 		this.cavitation()
 		cavitationCount++
@@ -767,28 +768,50 @@ function postMCSListener(){
 	
 	}
 	
-
 	if (total_cells >= 16 && cavitationCount > 0){
 		this.newCellDivision()
 	}	
-	
+
+// Boundary length measurements:
+	if (this.C.cells[lumen_id].V == 5000 && boundaryLengthMeasurements < 1){
+		this.boundaryLength()
+		console.log("time of measurement1:", sim.time)
+		boundaryLengthMeasurements++
+	} else if (this.C.cells[lumen_id].V == 7500 && boundaryLengthMeasurements < 2){
+		this.boundaryLength()
+		boundaryLengthMeasurements++
+		console.log("time of measurement2:", sim.time)
+
+	 }else if (this.C.cells[lumen_id].V >= 12500 && boundaryLengthMeasurements < 3){
+		this.boundaryLength()
+		boundaryLengthMeasurements++
+		console.log("time of measurement3:", sim.time)
+	} 
+
+	// Save the time when the lumen is fully grown
+	if (this.C.cells[lumen_id].V == 12500 && timeCounter < 1){
+		timeLumenGrowth = sim.C.time
+		timeCounter++
+	}
+
+	if (this.C.cells[lumen_id].V == 12500 && boundaryLengthMeasurements < 4  && sim.C.time == 1.5*timeLumenGrowth){
+		this.boundaryLength()
+		console.log("time of measurement4:", sim.time)
+		boundaryLengthMeasurements++
+	} else if (this.C.cells[lumen_id].V == 12500 && boundaryLengthMeasurements < 5 && sim.C.time == (2*timeLumenGrowth - 1)){
+		this.boundaryLength()
+		boundaryLengthMeasurements++
+		console.log("time of measurement5:", sim.time)
+	}
+
 	// Fuse the lumen into one cell id
-	if (this.C.cells[lumen_id].V >= 12500 && fusionCount < 1){
+	if (this.C.cells[lumen_id].V == 12500 && fusionCount < 1 && sim.C.time == 2*timeLumenGrowth){
 		this.fusion()
 		fusionCount++
 		fusion_time = sim.C.time
 	}
-	if (this.C.cells[lumen_id].V == 5000){
-		this.boundaryLength()
-		this.toggleAnim()
-	}
-
 	// Calculate statistics on the fused ICM
-	
 	if (sim.C.time == (fusion_time + 1)){
-		this.boundaryLength()
-	}
-	if (sim.C.time == (fusion_time + 2)){
 
 		this.disconnectedness()
 		for(let i of this.C.cellIDs()){
@@ -797,16 +820,21 @@ function postMCSListener(){
 				//this.C.cells[i].distortion
 
 				//Output - ICM split up or not(1/0)
-
 				console.log("The shape of the ICM is now:" + "\t" + this.C.cells[i].distortion)
 				this.toggleAnim()
-
 			}
 		}	
 	}	
-}	
+	
+	if (sim.C.time == (fusion_time + 2)){
+		this.fusionEmbryo()
+	}	
+	if (sim.C.time == (fusion_time + 3)){
+		console.log("The final shape of the embryo is now:" + "\t" + this.C.cells[1].distortion)
+		this.toggleAnim()
 
-
+	}
+}
 
 
 	/**
@@ -911,11 +939,9 @@ function zygoteDivision (){
 	// Dividing function for cells with the largest volume, the function divides up to a predefined total cell number
 	if( total_cells < 16 && div_time >= 100){
 
-		let largest_cell_list = largest_cells.map( x => x ) // to do shuffle.
-		//console.log(largest_cell_list + "\t" + "all the big cells" + "\t" + sim.time)
+		let largest_cell_list = largest_cells.map( x => x ) 
 
 		this.arrayShuffle(largest_cell_list)
-		//console.log(largest_cell_list + "\t" + "all the big cells shuffled"+ "\t" + sim.time)
 		if ( this.C.random() < 0.1 ){
 
 			// Randomly generate integer j to select cellId for cell division, also serves as local minimum time interval for division
@@ -1550,7 +1576,7 @@ function cavitation(){
 	// This function groups all ICM cells together into 1 cellId 
 function fusion(){
 	let connection = this.C.getStat(CPM.ConnectedComponentsByCell)
-	console.log(connection)
+	console.log("ConnectedComponentsbyCell", connection)
 	let connection_filtered = {}
 
 	let icm_cellids = []
@@ -1560,48 +1586,53 @@ function fusion(){
 		}
 	}
 
-	// Convert all ICM cells into 1 ICM cell with the same ID by assigning their pixels to the lowest cell Id ICM cell
+	// Convert all ICM cells into 1 ICM cell by assigning their pixels to the ICM cell with the lowest cellId
 	let icm_id = icm_cellids[0]
-	for (let id = 1; id < icm_cellids.length; id++){
-		let cp = this.C.getStat(CPM.PixelsByCell)[icm_cellids[id]]
+	for (let id of icm_cellids){
+		if (id != icm_id){
+			let cp = this.C.getStat(CPM.PixelsByCell)[id]
 
-		// Calculate volume and perimeter of the two ICM cells after fusion
-		let total_V = this.C.cells[icm_id].V + this.C.cells[[icm_cellids[id]]].V
-		let total_P = this.C.cells[icm_id].P + this.C.cells[[icm_cellids[id]]].P
+			// Calculate volume and perimeter of the ICM cell after fusion
+			let total_V = this.C.cells[icm_id].V + this.C.cells[id].V
+			let total_P = this.C.cells[icm_id].P + this.C.cells[id].P
 
-		this.gm.assignCellPixels(cp, 4, icm_id)
+			this.gm.assignCellPixels(cp, 4, icm_id)
 
-		this.C.cells[icm_id].V = total_V
-		this.C.cells[icm_id].P = total_P
+			this.C.cells[icm_id].V = total_V
+			this.C.cells[icm_id].P = total_P
+		}
 	}
 
-	// Calculate the final shape of the ICM
+	// Reset the distortion values to calculate the final shape of the ICM through this.disconnectedness()
+	//  Post-fusion measurements cannot happen in the same MCS as the fusion event
 	this.C.cells[icm_id].distortion = []
 	this.C.cells[icm_id].avgDistortion = 0
-
-/*
-	// Draw a random cell to start at
-	let icm_cellids = []
-	let connection_filtered = {}
-	for (let i of this.C.cellIDs()){
-		if (this.C.cellKind(i) == 4){
-			icm_cellids.push(i)
-		}
-	}
-
-	// Loop over all ICM cellids
-	for (let id of icm_cellids){
-		for (let cellid of Object.keys(connection)){
-			if (id == cellid ){
-				connection_filtered[cellid] = connection[cellid]	
-			}
-		}
-	}
-	icm_cellids = this.arrayShuffle(icm_cellids)
-	let random_icm_cell = icm_cellids[0]
-*/
 }
 
+// Calculate the final circularity of the embryo
+function fusionEmbryo(){
+	let remaining_cells = []
+	for (let i of this.C.cellIDs()){
+		remaining_cells.push(i)
+	}
+	let finalId = remaining_cells[0]
+	for (let id of remaining_cells){
+		if (id != finalId){
+			let cp = this.C.getStat(CPM.PixelsByCell)[id]
+
+			// Calculate volume and perimeter of the ICM cell after fusion
+			let total_V = this.C.cells[finalId].V + this.C.cells[id].V
+			let total_P = this.C.cells[finalId].P + this.C.cells[id].P
+
+			this.gm.assignCellPixels(cp, 4, finalId)
+
+			this.C.cells[finalId].V = total_V
+			this.C.cells[finalId].P = total_P
+		}
+	}
+	this.C.cells[finalId].distortion = []
+	this.C.cells[finalId].avgDistortion = 0
+}
 
 	// Identify if the ICM is intact at a specific point during the simulation
 function disconnectedness(){
@@ -1630,6 +1661,7 @@ function disconnectedness(){
 		this.C.cells[icm_id].disconnectedness = 1
 	}
 	console.log(connection_filtered)
+	console.log("Volume of the ICM is:", this.C.cells[icm_id].V )
 
 }
 
@@ -1651,7 +1683,7 @@ function boundaryLength(){
 		} 		
 	}
 
-	let ICM_boundary = []
+	let ICM_boundary = {}
 	let ICM_boundary_TE = [], ICM_boundary_TE_value = 0
 	let ICM_boundary_lumen = [], ICM_boundary_lumen_value = 0
 		console.log("this is icm id", icm_id)
@@ -1662,8 +1694,7 @@ function boundaryLength(){
 		for (const [key, value] of Object.entries(boundaryObject)){
 			// Iterate over each ICM cell's boundaries
 			if (key == icm_cell){
-				ICM_boundary.push(value)
-
+				ICM_boundary[key] = value
 				//Iterate over the object containing boundary lengths with each cellID and sum the boundary length with TE or lumen
 				for (const [cellid, length] of Object.entries(value)){
 					if (cellid in te_id){
@@ -1725,6 +1756,7 @@ function drawCanvas(){
 				for (let cell of sim.C.trace_cellid){
 					let daughters = this.C.cells[cell].daughterId 
 					for (let i of daughters){
+						i = i.toString()
 						sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "00FF00" ) 
 					}
 				}	
@@ -1738,6 +1770,7 @@ function drawCanvas(){
 		try {
 			if (sim.drawPolarColors){
 				for (let i of this.C.cellIDs()){
+					i = i.toString()
 					if (sim.C.cells[i].Polarized == "Polar"){
 						sim.Cim.drawPixelSet( sim.C.getStat(CPM.PixelsByCell)[Object.keys(sim.C.cells)[i]], "40E0D0" ) 
 					}
@@ -1834,11 +1867,11 @@ function storeInput(){
 	const lineageTrace = document.getElementById("lineage")	
 	let lin = lineageTrace.value
 	let lineageValue = lineageTrace.value.split(", ")
-	// Loop over the html input and assign the numerical value to an array for visualization 
+	// Loop over the html input and assign the (numerical) value to an array for visualization 
 	for (let value of lineageValue){
-		let numericValue =  parseInt(value)
-			inputArray.push(numericValue)
-	
+	//	let numericValue =  parseInt(value)
+	//	inputArray.push(numericValue)
+		inputArray.push(value)
 	}
 	sim.C.trace_cellid = inputArray
 }
