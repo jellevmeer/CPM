@@ -18,6 +18,10 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 	const filepath = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name + ext 
 	const filepath_values = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name  + "_2" + ext
 
+	// Writable arrays to transfer to filepath/filepath_values:
+	const measurement = []
+	const values = []
+
 	/*
 	fs.appendFileSync("C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\Test.txt", data, 'utf8', (err) => {
 	if (err) {
@@ -764,7 +768,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		bltime1 = sim.time
 
 		let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
-		this.dataLogger(filepath, data)
+		measurement.push(data)
 		boundaryLengthMeasurements++
 	}
 
@@ -773,7 +777,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		bltime1 = sim.time
 
 		let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
-		this.dataLogger(filepath, data)
+		measurement.push(data)
 
 		//this.outputPNG()
 	}
@@ -816,7 +820,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			bltime1 = sim.time
 
 		let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
-			this.dataLogger(filepath, data)
+		measurement.push(data)
 			//this.outputPNG()
 		}
 		/*
@@ -875,16 +879,16 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 					console.log("The shape of the ICM is now" + "\t" + this.C.cells[i].distortion)
 					//this.toggleAnim()
 					let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Shape ICM", this.C.cells[i].distortion])
-					this.dataLogger(filepath_values, data)
+					values.push(data)
 
 					let data2 = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Disconnectedness ICM", this.C.cells[i].disconnectedness])
-					this.dataLogger(filepath_values, data2)
+					values.push(data2)
 
 					let data3 = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Volume growth % lumen",  this.C.conf["VOLSTEP"][2]])
-					this.dataLogger(filepath_values, data3)
+					values.push(data3)
 
 					let data4 = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Volume lumen", this.C.conf["V"][2]])
-					this.dataLogger(filepath_values, data4)
+					values.push(data4)
 				}
 			}
 		}	
@@ -896,7 +900,12 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			console.log("The final shape of the embryo is now:" + "\t" + this.C.cells[1].distortion)
 			//this.toggleAnim()
 			let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Shape Zygote", this.C.cells[1].distortion])
-			this.dataLogger(filepath_values, data)
+			values.push(data)
+
+			// Output measurements to their respective files
+			this.dataLogger(filepath, measurement)
+			this.dataLogger(filepath_values, values)
+
 		}
 		
 	}
@@ -1645,7 +1654,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		console.log(sim.time,"The lumen has been seeded at:", seedingCoordinates)
 
 		let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Seeding method", method])
-		this.dataLogger(filepath_values, data)
+		values.push(data)
 
 		// Loop over the randomly sampled array coordinates and seed them on the grid
 		for (let coordinate of seedingCoordinates){
@@ -1940,13 +1949,20 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 	}
 
 	// Node.js specific: Write input data to a .txt file specified in filepath
+	
+	/** The constructor of class Blastomere.
+	 * @param {string} filepath - The output filepath
+	 *  @param {array} data - An array containing strings that will be synchroneously written to a file located in filepath
+	 * */
 	function dataLogger(filepath, data){
-		fs.appendFileSync(filepath, data + "\n", 'utf8', (err) => {
-		if (err) {
-			console.error('Error writing file:', err);
-			return;
-		} 
-	})
+		for (let string of data){
+			fs.appendFileSync(filepath, string + "\n", 'utf8', (err) => {
+				if (err) {
+					console.error('Error writing file:', err);
+					return;
+				} 
+			})
+		}
 	}
 
 	// Node.js specific: IMG saver to call at specific events in the simulation
