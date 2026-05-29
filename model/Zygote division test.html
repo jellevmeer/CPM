@@ -473,6 +473,152 @@ class ICM extends Blastomeres {
 }
 
 
+/** A class encoding the Epiblast (EPI)
+ */
+class Epiblast extends ICM {
+
+	/** The constructor of class SuperCell.
+	 * @param {object} conf - configuration settings of the simulation, containing the
+	 * relevant parameters. Note: this should include all constraint parameters.
+	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
+	 * when parameters are not explicitly overwritten
+	 * @param {CellId} id - the CellId of this cell (its key in the CPM.cells), unique identifier
+	 *  @param {CPMEvol} C - the CPM - used among others to draw random numbers
+	 * */
+	constructor (conf, kind, id, C) {
+		super(conf, kind, id, C)
+
+		/** encode cell-specific division state
+		 * @type{Number}
+		*/
+		this.divisionState = "No"
+
+
+	}
+	/*
+	birth(parent){
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+
+		// Change perimeter inheritance to account for the change in TE/Blastomere and ICM size 
+		let perimeterDividePercentage = 0.5
+	//	if (parent.recentlyConverted == "Yes"){
+	//		perimeterDividePercentage  = 0.65
+	//		parent.recentlyConverted = "No"
+	//	} 
+		//console.log("divided parentid = ", parent.id, "with a perimeterdividevalue of:", perimeterDividePercentage)
+
+		let birthDividePercentage = 0.5
+		let V = parent.V, P = parent.P
+		let maxPercentageDev = 5
+		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
+		let vol_dev = (V * birthDividePercentage * delta_VP)
+		let per_dev = (P * perimeterDividePercentage * delta_VP)
+		let j = this.C.ran(0, 1)
+
+		if (j == 0){
+			this.V = Math.round(V * birthDividePercentage + vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage + vol_dev)
+
+			parent.V = Math.round(V * birthDividePercentage - vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage - vol_dev)
+
+			this.P = P * perimeterDividePercentage + per_dev
+			this.initialP = P * perimeterDividePercentage + per_dev
+
+			parent.P = P * perimeterDividePercentage - per_dev
+			parent.initialP = P * perimeterDividePercentage - per_dev
+
+		}
+		else if (j == 1){
+			this.V = Math.round(V * birthDividePercentage - vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage - vol_dev)
+
+			parent.V = Math.round(V * birthDividePercentage + vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage + vol_dev)
+
+			this.P = P * perimeterDividePercentage - per_dev
+			this.initialP = P * perimeterDividePercentage - per_dev
+
+			parent.P = P * perimeterDividePercentage + per_dev				
+			parent.initialP = P * perimeterDividePercentage	+ per_dev		
+		}
+	}	*/	
+}
+
+/** A class encoding the Primitive Endoderm (PrE) or Hypoblast
+ */
+class PrimitiveEndoderm extends ICM {
+
+	/** The constructor of class SuperCell.
+	 * @param {object} conf - configuration settings of the simulation, containing the
+	 * relevant parameters. Note: this should include all constraint parameters.
+	 * @param {CellKind} kind - the cellkind of this cell, the parameters of kind are used 
+	 * when parameters are not explicitly overwritten
+	 * @param {CellId} id - the CellId of this cell (its key in the CPM.cells), unique identifier
+	 *  @param {CPMEvol} C - the CPM - used among others to draw random numbers
+	 * */
+	constructor (conf, kind, id, C) {
+		super(conf, kind, id, C)
+
+		/** encode cell-specific division state
+		 * @type{Number}
+		*/
+		this.divisionState = "No"
+	}
+	/*
+	birth(parent){
+		this.parentId = parent.parentId.slice()
+		this.parentId.push(parent.id)
+
+		// Change perimeter inheritance to account for the change in TE/Blastomere and ICM size 
+		let perimeterDividePercentage = 0.5
+	//	if (parent.recentlyConverted == "Yes"){
+	//		perimeterDividePercentage  = 0.65
+	//		parent.recentlyConverted = "No"
+	//	} 
+		//console.log("divided parentid = ", parent.id, "with a perimeterdividevalue of:", perimeterDividePercentage)
+
+		let birthDividePercentage = 0.5
+		let V = parent.V, P = parent.P
+		let maxPercentageDev = 5
+		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
+		let vol_dev = (V * birthDividePercentage * delta_VP)
+		let per_dev = (P * perimeterDividePercentage * delta_VP)
+		let j = this.C.ran(0, 1)
+
+		if (j == 0){
+			this.V = Math.round(V * birthDividePercentage + vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage + vol_dev)
+
+			parent.V = Math.round(V * birthDividePercentage - vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage - vol_dev)
+
+			this.P = P * perimeterDividePercentage + per_dev
+			this.initialP = P * perimeterDividePercentage + per_dev
+
+			parent.P = P * perimeterDividePercentage - per_dev
+			parent.initialP = P * perimeterDividePercentage - per_dev
+
+		}
+		else if (j == 1){
+			this.V = Math.round(V * birthDividePercentage - vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage - vol_dev)
+
+			parent.V = Math.round(V * birthDividePercentage + vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage + vol_dev)
+
+			this.P = P * perimeterDividePercentage - per_dev
+			this.initialP = P * perimeterDividePercentage - per_dev
+
+			parent.P = P * perimeterDividePercentage + per_dev				
+			parent.initialP = P * perimeterDividePercentage	+ per_dev		
+		}
+	}	*/	
+}
+
+
+
 /*	----------------------------------
 	CONFIGURATION SETTINGS
 	----------------------------------
@@ -487,11 +633,11 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 3,							// Seed for random number generation.
+		seed : 4,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
-		CELLS : ["empty", Blastomeres, Lumen, TE, ICM],
+		CELLS : ["empty", Blastomeres, Lumen, TE, ICM, Epiblast, PrimitiveEndoderm],
 		
 		// Constraint parameters. 
 		// Mostly these have the format of an array in which each element specifies the
@@ -500,28 +646,30 @@ let config = {
 		
 		// Adhesion parameters:
 		J : [ 
-		 	[0, 20, 1000, 20, 120],                  	// Background cell
-            [20, 15, 20, 1, 1],                   		// Blastomeres
-			[1000, 20, 18, 20, 25],                   	// Lumen 
-			[20, 1, 20, 1, 35],							// TE
-			[120, 1, 25, 35, 1]							// ICM
+		 	[0, 20, 1000, 20, 120, 120, 120],                  		// Background cell
+            [20, 15, 20, 1, 1, 1, 1],                   		// Blastomeres
+			[1000, 20, 18, 20, 25, 65, 10],                   	// Lumen 
+			[20, 1, 20, 1, 35, 20, 25],							// TE
+			[120, 1, 25, 35, 1, 5, 10],						// ICM
+			[120, 1, 65, 20, 5, 1, 5],							// Epiblast
+			[120, 1, 10, 25, 10, 5, 3]							// PrE
 		],
 
 		
 		// VolumeConstraint parameters
-		LAMBDA_V : [0,50, 50, 50, 50],					// VolumeConstraint importance per cellkind
-		V : [0,5000, 100, 200, 200],					// Target volume of each cellkind
+		LAMBDA_V : [0,50, 50, 50, 50, 25, 25],					// VolumeConstraint importance per cellkind
+		V : [0,5000, 100, 200, 200, 200, 200],					// Target volume of each cellkind
  
 		// Cell growth parameters (post-cleavage divisions):
 		// If (target volume - current volume) is < VOLCHANGE_THRESHOLD, 
 		// target volume for a cell is increased by VOLSTEP
 		VOLCHANGE_THRESHOLD : 10,
-		VOLSTEP : [0, 0.01, 0.08, 0.01, 0.01],
-		PERSTEP : [0, 0.0042, 0.005, 0.01, 0.01],
+		VOLSTEP : [0, 0.01, 0.08, 0.01, 0.01, 0.01, 0.01],
+		PERSTEP : [0, 0.0042, 0.005, 0.01, 0.01, 0.01, 0.01],
 
 		// PerimeterConstraint parameters
-		LAMBDA_P: [0, 2, 0, 1, 1],				    	// PerimeterConstraint importance per cellkind
-		P: [0,900, 100, 200, 200] 				    	// Target perimeter of each cellkind		
+		LAMBDA_P: [0, 2, 0, 1, 1, 0.5, 0.5],				    	// PerimeterConstraint importance per cellkind
+		P: [0,900, 100, 200, 200, 200, 200] 				    	// Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -529,18 +677,18 @@ let config = {
 	simsettings : {
 	
 		// Cells on the grid
-		NRCELLS : [1, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
+		NRCELLS : [1, 0, 0, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
 		BURNIN : 100,
 		RUNTIME : 1000,
 		RUNTIME_BROWSER : "Inf",
 		
 		// Visualization
 		CANVASCOLOR : "EEEEEE",				
-		CELLCOLOR : ["000000", "0000FF", "6F2DA8", "ED7117"],
-		SHOWBORDERS : [true, true, true, true],					// Should cellborders be displayed?
+		CELLCOLOR : ["000000", "4169E1", "6F2DA8", "ED7117", "00A86B", "FF69B4"],
+		SHOWBORDERS : [true, true, true, true, true, true],					// Should cellborders be displayed?
 	//SHOWBORDERS : [true, false, false, false],			// Should cellborders be displayed?
 
-		BORDERCOL : ["DDDDDD", "DDDDDD", "DDDDDD", "DDDDDD"],	// color of the cell borders
+		BORDERCOL : ["DDDDDD", "DDDDDD", "DDDDDD", "DDDDDD", "DDDDDD", "DDDDDD"],	// color of the cell borders
 		zoom : 2,												// zoom in on canvas with this factor.
 		
 		// Output images
@@ -600,7 +748,8 @@ function initialize(){
 		fusion : fusion,
 		disconnectedness : disconnectedness,
 		boundaryLength : boundaryLength,
-		fusionEmbryo : fusionEmbryo
+		fusionEmbryo : fusionEmbryo,
+		secondDifferentiation : secondDifferentiation
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -654,14 +803,21 @@ function initializeGrid(){
 let old_blastomeres = 0
 let icmDivisionArray = []
 let cavitationCount = 0, fusionCount = 0, timeCounter = 0, lineageSwitchCount = 0
-let fusion_time = 999999, timeLumenGrowth = 999999
+let differentiation1 = 0, differentiation2 = 0
+
+let timeLumenGrowth = 999999, fusion_time = 999999, firstDiffTime = 999999, secDiffTimeStart= 999999
 let boundaryLengthMeasurements = 0
 
 let global_total_TE = 17
 let global_total_ICM =  16
+let global_total_EPI = 18
+let global_total_PRE = 12
+
+let second_differentiationV = 10500
+
 /* The following custom methods will be added to the simulation object */
 function postMCSListener(){
-	let total_cells = this.cell_number([1, 3, 4])
+	let total_cells = this.cell_number([1, 3, 4, 5, 6])
 	let lumen_id = 0
 
 	if(sim.time == 0){
@@ -699,7 +855,7 @@ function postMCSListener(){
 	// First differentiation event
 	// Loop over all cellIds, if they are polarized assign them to the TE class, if they are Apolar they become ICM
 	// Not yet polarized cells are differentiated based on their position in the embryo
-	if (total_cells == 16){
+	if (total_cells == 16 ){ //&& differentiation1 < 0
 		for( let i of this.C.cellIDs()){
 			if (this.C.cellKind(i) == 1){
 				if( this.C.cells[i].Polarized == "Polar"){		
@@ -720,10 +876,12 @@ function postMCSListener(){
 				}	
 			}
 		}
+		differentiation1++
+		firstDiffTime = sim.time
 	} 
 
 	// Cavitation can be staggered with the div_time parameter to allow cell differentiation upon formation of the 16th cell prior to lumen formation
-	if (total_cells >= 16&& cavitationCount < 1 && div_time > 50){
+	if (total_cells >= 16 && cavitationCount < 1 && div_time > 50){
 		this.cavitation()
 		cavitationCount++
 
@@ -742,35 +900,27 @@ function postMCSListener(){
 	}
 
 	if (total_cells >= 16 && icmDivisionArray.length > 0  && this.C.cells[lumen_id].V > 200){
-
-		icmDivisionArray = this.cellDivision(icmDivisionArray)
 		// input of this.cellDivision should be the icmDivisionArray
 		// output of this.cellDivision should be a shorter icmDivisionArray by 1
-		
+		icmDivisionArray = this.cellDivision(icmDivisionArray)
 	}
-	
 
 	// Lumen growth & TE/ICM cell divisions (including cell growth)
-	let total_te = this.cell_number([3])
-
-
 	if (total_cells >= 16 ){ 
 		this.lumenGrowth()
 
 		// If a TE cell is inside the blastocyst for X number of MCS, convert it to an ICM cell
-	
 		let linSwitchOutput = this.lineageSwitch()
 		if (linSwitchOutput != undefined){
 			icmDivisionArray.push(linSwitchOutput)
 			lineageSwitchCount++
-		} 
-			
+		} 	
 	}
 	
 	if (total_cells >= 16 && cavitationCount > 0){
 		this.newCellDivision()
 	}	
-
+/*
 	let bltime1 = 0, bltime2 = 0, bltime3 =  0, bltime4 = 0, bltime5 = 0
 	let blIcm_TE1, blIcm_TE2, blIcm_TE3, blIcm_TE4, blIcm_TE5
 	let blIcm_Lumen1, blIcm_Lumen2, blIcm_Lumen3, blIcm_Lumen4, blIcm_Lumen5
@@ -792,13 +942,13 @@ function postMCSListener(){
 		boundaryLengthMeasurements++
 		console.log("time of measurement3:", bltime3, "Volume lumen:", this.C.cells[lumen_id].V, "ICM-TE:", blIcm_TE3, "ICM-Lumen:", blIcm_Lumen3)
 	} 
-
+*/
 	// Save the time when the lumen is fully grown
 	if (this.C.cells[lumen_id].V == 12500 && timeCounter < 1){
 		timeLumenGrowth = sim.time
 		timeCounter++
 	}
-
+/*
 	if (this.C.cells[lumen_id].V == 12500 && boundaryLengthMeasurements < 4  && sim.time == Math.round((1.5*timeLumenGrowth))){
 		let [blIcm_TE4, blIcm_Lumen4] =  this.boundaryLength()
 		bltime4 = sim.time
@@ -839,15 +989,29 @@ function postMCSListener(){
 	if (sim.time == (fusion_time + 3)){
 		console.log("The final shape of the embryo is now:" + "\t" + this.C.cells[1].distortion)
 		this.toggleAnim()
+	} */
+
+	// Second differentiation event [ICM --> PrE or EPI]	
+	if (this.C.cells[lumen_id].V > second_differentiationV) {	// When does differentiation start
+		if (this.C.random() < 0.1){								// How asynchroneously do cells differentiate
+			this.secondDifferentiation(lumen_id)
+			if (differentiation2 < 1){							// Record when the 1st differentiation event happens
+				secDiffTimeStart = sim.time
+				differentiation2++
+			}
+		}	
+	}
+	// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window
+	if (sim.time >= secDiffTimeStart && this.cell_number[4] == 0){
 
 	}
-}
+} 
 
 
 	/**
 	 * Count the number of cells present on the grid for one or a combination of cellkinds
 	 * @param {Array} cellkinds - the cellkind of this cell, the parameters of kind are used 
-	 * @return {Number}  Total number of cells for specified cellkinds
+	 * @return {Number} Total number of cells for specified cellkinds
 	 */ 
 
 function cell_number(cellkinds){
@@ -855,7 +1019,6 @@ function cell_number(cellkinds){
 
 	for( let i of this.C.cellIDs() ){
 		for (let kind of cellkinds){
-
 			if( this.C.cellKind(i) == kind){		
 				nr_cells++
 			}
@@ -865,7 +1028,11 @@ function cell_number(cellkinds){
 }
 
 	//let item = ["asym", "sym"], weight = [0.9, 0.1]
-
+	/** Randomly pick an option based on given weights
+	 * @param {Array} item - the different options (strings)
+	 * @param {Array} weight - respective weights for each option
+	 * @return {Array} chosen item, along with its index
+	 */ 
 // Weighted random function
 function weighted_random(item, weight){
 	if (item.length != weight.length){
@@ -1080,7 +1247,7 @@ function perimeterCounter(neigh_borderpixels){
 	// Input is an array of ICM cells
 function cellDivision(idArray){
 
-	if (this.C.random() < 0.005){
+	if (this.C.random() < 0.01){
 		//console.log("these are the ICM cells still able to divide pre-shuffle:", idArray)
 		idArray = this.arrayShuffle(idArray)
 		let id = idArray[0]
@@ -1188,6 +1355,8 @@ function newCellDivision(){
 	// Count the number of TE/ICM cells present on the grid
 	let te_cells = this.cell_number([3]), te_cells_tbd = 0
 	let icm_cells = this.cell_number([4]), icm_cells_tbd = 0
+	let epi_cells = this.cell_number([5]), epi_cells_tbd = 0
+	let pre_cells = this.cell_number([6]), pre_cells_tbd = 0 
 	let lumen_id 
 
 	// Count the number of TE/ICM cells that are currently dividing
@@ -1201,6 +1370,10 @@ function newCellDivision(){
 			te_cells_tbd++
 		} else if (this.C.cells[i].divisionState == "Yes" && this.C.cellKind(i) == 4){
 			icm_cells_tbd++
+		}else if (this.C.cells[i].divisionState == "Yes" && this.C.cellKind(i) == 5){
+			epi_cells_tbd++
+		}else if (this.C.cells[i].divisionState == "Yes" && this.C.cellKind(i) == 6){
+			pre_cells_tbd++
 		}
 	}
 
@@ -1220,15 +1393,31 @@ function newCellDivision(){
 				cell.divisionState = "Yes"
 				te_cells_tbd++
 			}
-		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 7500 && icmDivisionArray.length == 0){		
+		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 4500 && icmDivisionArray.length == 0 && this.C.cells[lumen_id].V < second_differentiationV){		
 			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (icm_cells + icm_cells_tbd) < global_total_ICM){
 			//	cell.maxVol = this.C.ran(175, 225) / 100 
-				cell.maxVol = this.C.ran(150, 175) / 100
+				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
 				icm_cells_tbd++
 			}
-		}
+		}/* else if (this.C.cellKind(i) == 5 && this.C.cells[lumen_id].V > 10500 ){		
+			let random = 0.0005 * cell.avgDistortion				
+			if (this.C.random() < random && cell.maxVol == 0 && (epi_cells + epi_cells_tbd) < global_total_EPI){
+			//	cell.maxVol = this.C.ran(175, 225) / 100 
+				cell.maxVol = this.C.ran(175, 225) / 100
+				cell.divisionState = "Yes"
+				icm_cells_tbd++
+			}
+		} else if (this.C.cellKind(i) == 6 && this.C.cells[lumen_id].V > 10500 ){		
+			let random = 0.0005 * cell.avgDistortion				
+			if (this.C.random() < random && cell.maxVol == 0 && (pre_cells + pre_cells_tbd) < global_total_PRE){
+			//	cell.maxVol = this.C.ran(175, 225) / 100 
+				cell.maxVol = this.C.ran(175, 225) / 100
+				cell.divisionState = "Yes"
+				icm_cells_tbd++
+			}
+		} */
 
 		if (cell.maxVol != 0 && this.C.cellKind(cell.id) != 2){
 		// Cell is able to divide when maxVol is reached
@@ -1520,7 +1709,7 @@ function cavitation(){
 			for (let neighborpix of neighbours_of_borderpixel_cell) {
 				let neighbor_id = this.C.pixt( neighborpix )
 				
-				// Compares pixel values (cellIds) of neighbour pixels to the center pixel
+				// Compares pixel values (cellIds) of neighbour pixels to the central pixel of the neighbourhood
 				// Resulting from selecting all neighbouring borderpixels, this will always be atleast 2 unique ids (own cell and neighbouring cell). 
 				// If this is 3 or more unique cellids, you have found a multicellular intersection, else a bicellular intersection.
 				// This selection ignores multicellular junctions with the background
@@ -1755,6 +1944,59 @@ function boundaryLength(){
 	return [ICM_boundary_TE_value, ICM_boundary_lumen_value]
 }
 
+
+// Differentiate ICM cells into PrE or EPI, based on a weighted random function, where
+// the weights are influenced by their localization in the blastocyst. ICM cells localized next to the
+// blastocoel side have a higher chance of differentiating into PrE.
+function secondDifferentiation(lumen_id){
+	let icmIds = [], newId
+	for (let i of this.C.cellIDs()){
+		if( this.C.cellKind(i) == 4){		
+			icmIds.push(i)
+		}
+	}
+	// Only differentiate 1 random ICM cell if there are some left	
+	if (icmIds.length > 0){
+		icmIds = this.arrayShuffle(icmIds)
+		let tbd_cell = icmIds[0]
+		//console.log("icmids:", icmIds, "tbd=", tbd_cell)
+		// Filter for specific ICM cell boundary only and check for lumen cell boundary
+		let boundaryObject = this.C.getStat(CPM.CellNeighborList)
+		let tbd_cell_boundary = {}
+		let tbd_cell_boundary_ids = []
+
+		tbd_cell_boundary = objectSubsetter(boundaryObject, [tbd_cell])
+		//console.log("tbd_cell_boundary", tbd_cell_boundary)
+		for (const [key, value] of Object.entries(tbd_cell_boundary)){
+			for (const [cellid, length] of Object.entries(value)){
+				tbd_cell_boundary_ids.push(cellid)
+			}	
+		}
+		//console.log("tbd_cell_boundary_ids", tbd_cell_boundary_ids)
+		// If the chosen cell is next to the lumen it has a hugher chance of becoming PrE 
+		if (tbd_cell_boundary_ids.includes(lumen_id)){	
+			//newId = this.weighted_random(["5", "6"], [25, 75])
+			newId = this.weighted_random(["5", "6"], [50, 50])
+
+			//console.log(newId, "includes lumen")
+			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
+
+		} else {
+			//EPI weighted random here
+			//newId = this.weighted_random(["5", "6"], [75, 25])
+			newId = this.weighted_random(["5", "6"], [50, 50])			
+			//console.log(newId, "does not include lumen")
+			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
+
+		}
+	}
+}
+
+function apoptosis(cell) {
+	
+}
+
+
 // Custom drawing function 
 function drawCanvas(){
 	// Add the canvas if required
@@ -1766,6 +2008,8 @@ function drawCanvas(){
 
 	// Loop over all cell types and colour them + their borders
 	for (let cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
+		this.Cim.drawCells( cellkind + 1, this.conf["CELLCOLOR"][cellkind ])
+		/*
 		if (cellkind == 0){
 			this.Cim.drawCells( cellkind + 1, "000000")
 		}else if (cellkind == 1){
@@ -1774,7 +2018,11 @@ function drawCanvas(){
 			this.Cim.drawCells( cellkind + 1, "6F2DA8")
 		} else if (cellkind == 3){
 			this.Cim.drawCells( cellkind + 1, "ED7117")
-		}
+		} else if (cellkind == 4){
+			this.Cim.drawCells( cellkind + 1, "ED7117")
+		} else if (cellkind == 5){
+			this.Cim.drawCells( cellkind + 1, "ED7117")
+		} */
 	}	
 		// Specific cell Id visualization (requires specific cell Id input on Lineage Trace Cell Id <input>)
 		// Allows for the visualization of multiple cellIds
@@ -1821,16 +2069,22 @@ function drawCanvas(){
 		}
 
 		// Draw cell borders if required for all cellkinds
-		for( let cell = 0; cell < nrcells.length; cell ++ ){
+		for (let cell = 0; cell < nrcells.length; cell ++ ){
+			if ( cellborders[cell] && cell == 1 ){
+				this.Cim.drawCellBorders( cell + 1, "151B54" )
+			} else if ( cellborders[cell]){
+				this.Cim.drawCellBorders( cell + 1, "c30101" )
+			}
+			/*
 			if ( cellborders[cell] && cell == 0 ){
 				this.Cim.drawCellBorders( cell + 1, "c30101" )
 			}	else if ( cellborders[cell] && cell == 1 ){
-			this.Cim.drawCellBorders( cell + 1, "151B54" )
+					this.Cim.drawCellBorders( cell + 1, "151B54" )
 			}	else if ( cellborders[cell] && cell == 2 ){
 			this.Cim.drawCellBorders( cell + 1, "c30101" )
 			}	else if ( cellborders[cell] && cell == 3 ){
 			this.Cim.drawCellBorders( cell + 1, "c30101" )
-			}
+			} */
 		}
 }
 
@@ -1970,6 +2224,9 @@ function storeInput(){
 	<td><b>J<sub>lumen</sub></b></td>
 	<td><b>J<sub>TE</sub></b></td>
 	<td><b>J<sub>ICM</sub></b></td>
+	<td><b>J<sub>EPI</sub></b></td>
+	<td><b>J<sub>PrE</sub></b></td>
+
 </tr>
 
 <tr>
@@ -1983,7 +2240,11 @@ function storeInput(){
 	<input type="text" size = 1 value="20" id="j03" >
 	</td>	<td>
 	<input type="text" size = 1 value="20" id="j04" >
-	</td>	
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j05" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j06" >
+	</td>			
 </tr>
 <tr>
 	<th>J<sub>blastomere</sub></th>	<td>
@@ -1996,7 +2257,11 @@ function storeInput(){
 	<input type="text" size = 1 value="20" id="j13" >
 	</td>	<td>
 	<input type="text" size = 1 value="20" id="j14" >
-	</td>	
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j15" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j16" >
+	</td>			
 </tr>
 <tr>
 	<th>J<sub>lumen</sub></th>	<td>
@@ -2009,7 +2274,11 @@ function storeInput(){
 	<input type="text" size = 1 value="20" id="j23" >
 	</td>	<td>
 	<input type="text" size = 1 value="20" id="j24" >
-	</td>	
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j25" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j26" >
+	</td>			
 </tr>
 </tr>
 <tr>
@@ -2023,6 +2292,10 @@ function storeInput(){
 	<input type="text" size = 1 value="20" id="j33" >
 	</td>	<td>
 	<input type="text" size = 1 value="20" id="j34" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j35" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j36" >
 	</td>	
 </tr>		
 </tr>
@@ -2037,8 +2310,47 @@ function storeInput(){
 	<input type="text" size = 1 value="20" id="j43" >
 	</td>	<td>
 	<input type="text" size = 1 value="20" id="j44" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j45" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j46" >
 	</td>	
 </tr>
+<tr>
+	<th>J<sub>EPI</sub></th>	<td>
+	<input type="text" size = 1 value="20" id="j50" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j51" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j52" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j53" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j54" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j55" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j56" >
+	</td>						
+</tr>
+<tr>
+	<th>J<sub>PrE</sub></th>	<td>
+	<input type="text" size = 1 value="20" id="j60" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j61" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j62" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j63" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j64" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j65" >
+	</td>	<td>
+	<input type="text" size = 1 value="20" id="j66" >
+	</td>					
+</tr>
+
 </tr>
 
 </table>
