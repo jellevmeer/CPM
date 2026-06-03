@@ -35,8 +35,6 @@ function modelling(data) {
   runModel(jICM_TE, jICM_lumen, seed, volstep_lumen)
 
   const result = [jICM_TE, jICM_lumen, seed, volstep_lumen]
-
-  console.log("succesful run!")
   return result
 }
 

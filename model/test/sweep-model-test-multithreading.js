@@ -6,17 +6,19 @@ const WorkerPool = require('./multithreading-worker-pool.js')
 const pool = new WorkerPool('./multithreading-worker.js')
 
 // Sweep parameters - runModel input is params = jICM_TE, jICM_lumen, used_seed, volstep_lumen
-let seeds = [1, 2]
-let J_TEs = [20]
-let J_Lumens = [40]
-let volstep_lumen = [0.04]
+let seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+let J_TEs = [5, 10, 15, 20, 25, 30, 35]
+let J_Lumens = [25, 30, 35, 40, 45, 50, 55, 60, 65]
+
+
+let volstep_lumen = [0.02]
 //let jICM_TE = 20, jICM_lumen = 40, grow = 0.04
 //let seed = 1
   
 //console.time('All tasks');
 
 // Constructing input parameter array:
-// Model input requires : jICM_TE, jICM_lumen, used_seed, volstep_lume
+// Model input requires : jICM_TE, jICM_lumen, used_seed, volstep_lumen
 let tasks = []
 for (const grow of volstep_lumen){
   for (const seed of seeds){
@@ -137,33 +139,4 @@ if (isMainThread) {
 
 } else {
 
-}
-
-for (const grow of volstep_lumen){
-  for (const seed of seeds){
-    for (const jICM_TE of J_TEs){
-      for (const jICM_lumen of J_Lumens){
-        runModel(jICM_TE, jICM_lumen, seed, grow)
-      }
-    }
-  }
-}
-
-/*for (const grow of volstep_lumen){
-  for (const seed of seeds){
-    for (const jICM_TE of J_TEs){
-      for (const jICM_lumen of J_Lumens){
-        tasks.push(limit(() =>
-          runModel(jICM_TE, jICM_lumen, seed, volstep_lumen)
-        ))
-        bar1.increment()
-      }
-    }
-  }
-}
 */
-
-//await Promise.all(tasks); ~not allowed in this syntax?
-
-//error: await is only valid in async functions and the top level bodies of modules
-

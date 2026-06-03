@@ -2,14 +2,16 @@
 const os = require('os')
 const {Worker, threadId} = require('worker_threads')
 
-//code taken from w3school https://www.w3schools.com/nodejs/nodejs_worker_threads.asp:
+// numWorkers is dependent on CPU core for your own device, you can always reduce this number in _initialize()
+
+//code taken from w3school https://www.w3schools.com/nodejs/nodejs_worker_threads.asp and slightly modified:
 class WorkerPool { 
   constructor(workerScript, numWorkers = os.cpus().length) {
-    this.workerScript = workerScript;
-    this.numWorkers = numWorkers;
-    this.workers = [];
-    this.freeWorkers = [];
-    this.tasks = [];
+    this.workerScript = workerScript
+    this.numWorkers = numWorkers
+    this.workers = []
+    this.freeWorkers = []
+    this.tasks = []
     
     // Initialize workers
     this._initialize();
@@ -17,8 +19,9 @@ class WorkerPool {
   
   _initialize() {
     // Create all workers
-    for (let i = 0; i < this.numWorkers; i++) {
-      this._createWorker();
+    //for (let i = 0; i < this.numWorkers; i++) {
+    for (let i = 0; i < (this.numWorkers - 2); i++) {
+      this._createWorker()
     }
   }
   
@@ -40,7 +43,7 @@ class WorkerPool {
       
       // Process the next task if any
       this._processQueue();
-    });
+    })
     
     worker.on('error', (err) => {
       // If a worker errors, terminate it and create a new one
@@ -57,7 +60,7 @@ class WorkerPool {
         //reject(err);
         this._processQueue();
       }
-    });
+    })
     
     // Optionally create a new worker after exiting, but this also registers close()
     worker.on('exit', (code) => {  
@@ -66,17 +69,17 @@ class WorkerPool {
         this._removeWorker(worker);
         //this._createWorker();
       }
-    });
+    })
     
     // Add to free workers
-    this.workers.push(worker);
-    this.freeWorkers.push(worker);
+    this.workers.push(worker)
+    this.freeWorkers.push(worker)
   }
   
   _removeWorker(worker) {
     // Remove from the workers arrays
-    this.workers = this.workers.filter(w => w !== worker);
-    this.freeWorkers = this.freeWorkers.filter(w => w !== worker);
+    this.workers = this.workers.filter(w => w !== worker)
+    this.freeWorkers = this.freeWorkers.filter(w => w !== worker)
   }
   
   _processQueue() {
@@ -95,18 +98,18 @@ class WorkerPool {
   // Run a task on a worker
   runTask(taskData) {
     return new Promise((resolve, reject) => {
-      const task = { taskData, resolve, reject };
-      this.tasks.push(task);
-      this._processQueue();
+      const task = { taskData, resolve, reject }
+      this.tasks.push(task)
+      this._processQueue()
     });
   }
   
   // Close all workers when done
   close() {
     for (const worker of this.workers) {
-      worker.terminate();
+      worker.terminate()
     }
   }
 }
 
-module.exports = WorkerPool;
+module.exports = WorkerPool

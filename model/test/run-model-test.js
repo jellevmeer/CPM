@@ -12,8 +12,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 	const fs = require('fs');
 
 	const file_name = "MCSParametersICM-TE-Lumen"
-	const ext = "test.txt"
-	//const file_name = "AdhesionParameterOptimizationICM-TE-Lumen.txt"
+	const ext = "-adh3.txt"
 
 	const filepath = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name + ext 
 	const filepath_values = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name  + "_2" + ext
@@ -486,7 +485,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 				[0, 20, 1000, 20, 120],                  	// Background cell
 				[20, 15, 20, 1, 1],                   		// Blastomeres
 				[1000, 20, 18, 20, jICM_lumen],                   	// Lumen 
-				[20, 1, 20, 0, jICM_TE],							// TE
+				[20, 1, 20, 1, jICM_TE],							// TE
 				[120, 1, jICM_lumen, jICM_TE, 1]							// ICM
 			],
 
@@ -515,11 +514,11 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			// Cells on the grid
 			NRCELLS : [1, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
 			BURNIN : 100,
-			RUNTIME : 5000,
+			RUNTIME : 7500,
 			RUNTIME_BROWSER : "Inf",
 			
 			// Visualization
-			CANVASCOLOR : "EEEEEE",			// "F8D2CB",
+			CANVASCOLOR : "EEEEEE",		
 			CELLCOLOR : ["000000", "0000FF", "6F2DA8", "ED7117"],
 			SHOWBORDERS : [true, true, true, true],					// Should cellborders be displayed?
 		//SHOWBORDERS : [true, false, false, false],			// Should cellborders be displayed?
@@ -772,7 +771,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		boundaryLengthMeasurements++
 	}
 
-	if (this.C.cells[lumen_id].V % 500 == 0 && timeCounter < 1){		//Measurement every 2500 Vlumen --> 0, 2500, 5000, 7500, 10000, 12500
+	if (this.C.cells[lumen_id].V % 500 == 0 && timeCounter < 1){		//Measurement every 500 Vlumen 
 		let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
 		bltime1 = sim.time
 
@@ -810,7 +809,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		if (this.C.cells[lumen_id].V == 12500 && timeCounter < 1){
 			timeLumenGrowth = sim.time
 			timeCounter++
-			console.log("Fully grown lumen at time:", timeLumenGrowth)
+			//console.log("Fully grown lumen at time:", timeLumenGrowth)
 		}
 		
 	// measure every X MCS after max lumen is reached for Y times
@@ -876,7 +875,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 					//this.C.cells[i].distortion
 
 					//Output - ICM split up or not(1/0)
-					console.log("The shape of the ICM is now" + "\t" + this.C.cells[i].distortion)
+					//console.log("The shape of the ICM is now" + "\t" + this.C.cells[i].distortion)
 					//this.toggleAnim()
 					let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Shape ICM", this.C.cells[i].distortion])
 					values.push(data)
@@ -897,7 +896,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			this.fusionEmbryo()
 		}	
 		if (sim.time == (fusion_time + 3)){
-			console.log("The final shape of the embryo is now:" + "\t" + this.C.cells[1].distortion)
+			//console.log("The final shape of the embryo is now:" + "\t" + this.C.cells[1].distortion)
 			//this.toggleAnim()
 			let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Shape Zygote", this.C.cells[1].distortion])
 			values.push(data)
@@ -1419,7 +1418,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			if (bg_borderpixels_te[cellid].length == 0 && this.C.cells[cellid].internalCounter > 200){
 				this.C.cells[cellid].Polarized = "Apolar"
 				this.C.cells[cellid].newCellID(cellid, 4)
-				console.log("Converted cellid" + "\t" + cellid + "\t" + "from TE to ICM following a period of internalization.")
+				//console.log("Converted cellid" + "\t" + cellid + "\t" + "from TE to ICM following a period of internalization.")
 				return cellid
 			}
 		}
@@ -1640,10 +1639,10 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		
 		if (method == 0){
 			seeding_method = bicellular_borderpixels
-			console.log("bicellular lumen")
+			//console.log("bicellular lumen")
 		} else if (method == 1){
 			seeding_method = multicellular_borderpixels
-			console.log("multicellular lumen")
+			//console.log("multicellular lumen")
 		}
 
 		while (nr_lumen < 1){
@@ -1651,7 +1650,7 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 			seedingCoordinates.push(this.C.grid.i2p(seeding_method[sample]))
 			nr_lumen++
 		}
-		console.log(sim.time,"The lumen has been seeded at:", seedingCoordinates)
+		//console.log(sim.time,"The lumen has been seeded at:", seedingCoordinates)
 
 		let data = String([this.C.conf.seed, jICM_TE, jICM_lumen, sim.time, "Seeding method", method])
 		values.push(data)
@@ -1750,11 +1749,11 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 		
 		// Check if the ICM is in one piece or not
 		if (connection_filtered[icm_id].length > 1){
-			console.log("ICM is split")
+			//console.log("ICM is split")
 			this.C.cells[icm_id].disconnectedness = 1
 		}
 		//console.log(connection_filtered)
-		console.log("Volume of the ICM is:", this.C.cells[icm_id].V )
+		//console.log("Volume of the ICM is:", this.C.cells[icm_id].V )
 
 	}
 
@@ -1983,6 +1982,5 @@ module.exports = function model(jICM_TE, jICM_lumen, used_seed, volstep_lumen){
 	}
 		
 	sim.run()
-
 
 }
