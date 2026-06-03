@@ -633,7 +633,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 4,							// Seed for random number generation.
+		seed : 5,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -646,13 +646,13 @@ let config = {
 		
 		// Adhesion parameters:
 		J : [ 
-		 	[0, 20, 1000, 20, 120, 120, 120],                  		// Background cell
+		 	[0, 20, 1000, 20, 120, 120, 120],                  	// Background cell
             [20, 15, 20, 1, 1, 1, 1],                   		// Blastomeres
-			[1000, 20, 18, 20, 25, 65, 10],                   	// Lumen 
+			[1000, 20, 18, 20, 25, 65, 30],                   	// Lumen 
 			[20, 1, 20, 1, 35, 20, 25],							// TE
-			[120, 1, 25, 35, 1, 5, 10],						// ICM
-			[120, 1, 65, 20, 5, 1, 5],							// Epiblast
-			[120, 1, 10, 25, 10, 5, 3]							// PrE
+			[120, 1, 25, 35, 1, 5, 10],							// ICM
+			[120, 1, 65, 20, 5, 1, 10],							// Epiblast
+			[120, 1, 30, 25, 10, 10, 3]							// PrE
 		],
 
 		
@@ -749,7 +749,8 @@ function initialize(){
 		disconnectedness : disconnectedness,
 		boundaryLength : boundaryLength,
 		fusionEmbryo : fusionEmbryo,
-		secondDifferentiation : secondDifferentiation
+		secondDifferentiation : secondDifferentiation,
+		lineageSwitch2 : lineageSwitch2
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -809,9 +810,9 @@ let timeLumenGrowth = 999999, fusion_time = 999999, firstDiffTime = 999999, secD
 let boundaryLengthMeasurements = 0
 
 let global_total_TE = 17
-let global_total_ICM =  16
+let global_total_ICM =  18
 let global_total_EPI = 18
-let global_total_PRE = 12
+let global_total_PRE = 10
 
 let second_differentiationV = 10500
 
@@ -1002,8 +1003,8 @@ function postMCSListener(){
 		}	
 	}
 	// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window
-	if (sim.time >= secDiffTimeStart && this.cell_number[4] == 0){
-
+	if (sim.time >= secDiffTimeStart && this.cell_number([4]) == 0 && this.C.random() < 0.001){
+		this.lineageSwitch2(lumen_id)
 	}
 } 
 
@@ -1348,18 +1349,18 @@ function cellGrowth(){
 	// Cellgrowth and celldivision through increasing the target volume and perimeter of cells.
 	// Being able to grow is randomly decided, in addition to customizable conditionals.
 	// Cell divides once it has grown to [a, b] * the initial size, where a < b.
-	// The number of cells than can divide is specified through global variables global_total_TE & global_total_ICM
-	// note: this function is designed for the use of the birth function belonging to the blastomeres class for the TE cells.
+	// The number of cells than can divide is specified through global variables global_total_TE, global_total_ICM etc.
+	// Note: this function is designed for the use of the birth function belonging to each class, these are reflected in the maxWeight values.
 
 function newCellDivision(){
-	// Count the number of TE/ICM cells present on the grid
+	// Count the number of cells present on the grid per kind
 	let te_cells = this.cell_number([3]), te_cells_tbd = 0
 	let icm_cells = this.cell_number([4]), icm_cells_tbd = 0
 	let epi_cells = this.cell_number([5]), epi_cells_tbd = 0
 	let pre_cells = this.cell_number([6]), pre_cells_tbd = 0 
 	let lumen_id 
 
-	// Count the number of TE/ICM cells that are currently dividing
+	// Count the number of cells that are currently dividing
 	// Includes a check so that this function does not throw an error post-fusion/disconnectedness measurement
 	for (let i of this.C.cellIDs()){
 		if (typeof i === 'undefined'){
@@ -1392,7 +1393,7 @@ function newCellDivision(){
 				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
 				te_cells_tbd++
-			}
+			}	// ICM divisions stop once the differentiation into PrE/EPI has started, to prevent excesssive growth
 		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 4500 && icmDivisionArray.length == 0 && this.C.cells[lumen_id].V < second_differentiationV){		
 			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (icm_cells + icm_cells_tbd) < global_total_ICM){
@@ -1401,21 +1402,23 @@ function newCellDivision(){
 				cell.divisionState = "Yes"
 				icm_cells_tbd++
 			}
-		}/* else if (this.C.cellKind(i) == 5 && this.C.cells[lumen_id].V > 10500 ){		
-			let random = 0.0005 * cell.avgDistortion				
+		} /*
+		// EPI / PrE divisions now only occur after all ICM cells have differentiated
+		else if (this.C.cellKind(i) == 5 && this.cell_number([4]) == 0){		
+			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (epi_cells + epi_cells_tbd) < global_total_EPI){
 			//	cell.maxVol = this.C.ran(175, 225) / 100 
 				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
-				icm_cells_tbd++
+				epi_cells_tbd++
 			}
-		} else if (this.C.cellKind(i) == 6 && this.C.cells[lumen_id].V > 10500 ){		
+		} else if (this.C.cellKind(i) == 6 && this.cell_number([4]) == 0){		
 			let random = 0.0005 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (pre_cells + pre_cells_tbd) < global_total_PRE){
 			//	cell.maxVol = this.C.ran(175, 225) / 100 
 				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
-				icm_cells_tbd++
+				pre_cells_tbd++
 			}
 		} */
 
@@ -1973,18 +1976,17 @@ function secondDifferentiation(lumen_id){
 			}	
 		}
 		//console.log("tbd_cell_boundary_ids", tbd_cell_boundary_ids)
-		// If the chosen cell is next to the lumen it has a hugher chance of becoming PrE 
+		// If the chosen cell is next to the lumen it has a higher chance of differentiating into PrE 
 		if (tbd_cell_boundary_ids.includes(lumen_id)){	
 			//newId = this.weighted_random(["5", "6"], [25, 75])
-			newId = this.weighted_random(["5", "6"], [50, 50])
+			newId = this.weighted_random(["5", "6"], [30, 70])
 
 			//console.log(newId, "includes lumen")
 			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
 
 		} else {
-			//EPI weighted random here
 			//newId = this.weighted_random(["5", "6"], [75, 25])
-			newId = this.weighted_random(["5", "6"], [50, 50])			
+			newId = this.weighted_random(["5", "6"], [70, 30])			
 			//console.log(newId, "does not include lumen")
 			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
 
@@ -1992,8 +1994,81 @@ function secondDifferentiation(lumen_id){
 	}
 }
 
-function apoptosis(cell) {
-	
+// Lineage switch for PrE into EPI cells or vice versa [Lineage plasticity].
+// Cells are selected after a specific amount of time of being surrounded by other celltype(s).
+// To do: also include the option of apoptosis
+function lineageSwitch2(lumen_id) {
+	// Get a specific cell that is internalized wrongly
+	// pre cells/epi cells close to the lumen will automatically sort out
+	// This  is meant for cluster formation within the former ICM / cells that take too long to sort out
+	//tbd_cell_boundary = objectSubsetter(boundaryObject, [tbd_cell])
+// Loop over the cells and identify isolated cells (could be clusters? of two/three)
+/* options wrong:
+- PrE nested in the TE in the middle of epi
+- EPI engulfing a single/multiple PrE
+- PrE engulfing a single EPI cell
+- Line of Pre from lumen to TE separating EPI from another cluster of EPI
+*/
+	let preIds = [], epiIds = [], teIds = []
+	let pre_cell_boundaries = {}, epi_cell_boundaries = {}
+	let uniqueNeighbours 
+	// Identify PrE cell ids
+	for (let i of this.C.cellIDs()){
+		if(this.C.cellKind(i) == 4){	
+			teIds.push(i)
+		} else if(this.C.cellKind(i) == 5){		
+			epiIds.push(i)
+		} else if(this.C.cellKind(i) == 6){	
+			preIds.push(i)
+		}
+	}
+		// Get all interacting cells + their boundary lengths for each cell id on the grid
+	let boundaryObject = this.C.getStat(CPM.CellNeighborList)
+	console.log(boundaryObject)
+	for (const [key, value] of Object.entries(boundaryObject)){
+
+		// Check celltype of selected cell's neighbours to define specific actions - Only investigate Epi/PrE cells	
+		if (epiIds.includes(key) || preIds.includes(key)){
+				console.log("1st for loop key:", key, "value:", value)
+
+
+			uniqueNeighbours = Object.keys(value).length
+			let interfaceTE = 0, interfaceEPI = 0, interfacePrE = 0, interfaceLumen = 0
+
+			for (const [cellid, length] of Object.entries(value)){
+				console.log("2nd for loop key:", cellid, "value:", length)
+
+			// Count nr of interfaces per cellkind for each PrE or EPI cell
+				if (teIds.includes(cellid)){
+					interfaceTE++
+				} else if (epiIds.includes(cellid)){	
+					interfaceEPI++
+				} else if (preIds.includes(cellid)){	
+					interfacePrE++
+				} else if (cellid == lumen_id){	
+					interfaceLumen++
+				}
+			} 	console.log("interfaces:", interfaceTE, interfaceEPI, interfacePrE, interfaceLumen)
+
+			// Add action for specific combination of interfaces based on key of cell being investigated
+			// EPI cells:
+		/*	if (epiIds.includes(key) && interfaceEPI == 0){
+				this.C.cells[key].newCellID(key, 6)
+				console.log("Converted cellid:", key, " from celltype Epi to PrE" )
+			}
+		*/		
+			// PrE cells:
+			if (preIds.includes(key) && interfacePrE == 0){
+				this.C.cells[key].newCellID(key, 5)
+				console.log("Converted cellid:", key, " from celltype PrE to Epi" )
+
+			}
+
+			// PrE / EPI clusters that are multiple cells
+		}	
+	}
+
+// Is this biological?????
 }
 
 
@@ -2009,20 +2084,7 @@ function drawCanvas(){
 	// Loop over all cell types and colour them + their borders
 	for (let cellkind = 0; cellkind < nrcells.length; cellkind ++ ){
 		this.Cim.drawCells( cellkind + 1, this.conf["CELLCOLOR"][cellkind ])
-		/*
-		if (cellkind == 0){
-			this.Cim.drawCells( cellkind + 1, "000000")
-		}else if (cellkind == 1){
-			this.Cim.drawCells( cellkind + 1, "4169E1")
-		} else if (cellkind == 2){
-			this.Cim.drawCells( cellkind + 1, "6F2DA8")
-		} else if (cellkind == 3){
-			this.Cim.drawCells( cellkind + 1, "ED7117")
-		} else if (cellkind == 4){
-			this.Cim.drawCells( cellkind + 1, "ED7117")
-		} else if (cellkind == 5){
-			this.Cim.drawCells( cellkind + 1, "ED7117")
-		} */
+
 	}	
 		// Specific cell Id visualization (requires specific cell Id input on Lineage Trace Cell Id <input>)
 		// Allows for the visualization of multiple cellIds
@@ -2075,16 +2137,6 @@ function drawCanvas(){
 			} else if ( cellborders[cell]){
 				this.Cim.drawCellBorders( cell + 1, "c30101" )
 			}
-			/*
-			if ( cellborders[cell] && cell == 0 ){
-				this.Cim.drawCellBorders( cell + 1, "c30101" )
-			}	else if ( cellborders[cell] && cell == 1 ){
-					this.Cim.drawCellBorders( cell + 1, "151B54" )
-			}	else if ( cellborders[cell] && cell == 2 ){
-			this.Cim.drawCellBorders( cell + 1, "c30101" )
-			}	else if ( cellborders[cell] && cell == 3 ){
-			this.Cim.drawCellBorders( cell + 1, "c30101" )
-			} */
 		}
 }
 
@@ -2185,8 +2237,8 @@ function storeInput(){
 <body onload="initialize()">
  
 <h1>Human Zygote to Blastocyst Development</h1> <hr>
-<p>A CPM containing a zygote undergoing cleavage divisions.
-<br>Compaction occurs when the 8-cell stage is reached.
+<p>A CPM containing a zygote undergoing cleavage divisions, cavitation and two distinct differentiation events.
+<br>Author: Jelle van Meer, 2026 (MSc Internship - Mulder Lab)
 </p>
 <p>
 <button onclick="resetButton()">Reset</button>
