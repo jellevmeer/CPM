@@ -633,7 +633,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 5,							// Seed for random number generation.
+		seed : 6,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -670,6 +670,7 @@ let config = {
 		// PerimeterConstraint parameters
 		LAMBDA_P: [0, 2, 0, 1, 1, 0.5, 0.5],				    	// PerimeterConstraint importance per cellkind
 		P: [0,900, 100, 200, 200, 200, 200] 				    	// Target perimeter of each cellkind		
+
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -750,7 +751,8 @@ function initialize(){
 		boundaryLength : boundaryLength,
 		fusionEmbryo : fusionEmbryo,
 		secondDifferentiation : secondDifferentiation,
-		lineageSwitch2 : lineageSwitch2
+		lineageSwitch2 : lineageSwitch2,
+		sortingScore : sortingScore
 	}
 	sim = new CPM.Simulation( config, custommethods )
 
@@ -1003,8 +1005,9 @@ function postMCSListener(){
 		}	
 	}
 	// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window
-	if (sim.time >= secDiffTimeStart && this.cell_number([4]) == 0 && this.C.random() < 0.001){
-		this.lineageSwitch2(lumen_id)
+	if (sim.time >= secDiffTimeStart && this.cell_number([4]) == 0 && this.C.random() < 0.01){
+		//this.lineageSwitch2(lumen_id)
+		this.sortingScore()
 	}
 } 
 
@@ -1789,7 +1792,8 @@ function cavitation(){
 }
 
 
-	// This function groups all ICM cells together into 1 cellId 
+	// This function groups all ICM cells together into 1 cellId. 
+	// Used for measuring if the ICM is comprised of different clusters or not, and the ICM shape.
 function fusion(){
 	let connection = this.C.getStat(CPM.ConnectedComponentsByCell)
 	console.log("ConnectedComponentsbyCell", connection)
@@ -1979,14 +1983,14 @@ function secondDifferentiation(lumen_id){
 		// If the chosen cell is next to the lumen it has a higher chance of differentiating into PrE 
 		if (tbd_cell_boundary_ids.includes(lumen_id)){	
 			//newId = this.weighted_random(["5", "6"], [25, 75])
-			newId = this.weighted_random(["5", "6"], [30, 70])
+			newId = this.weighted_random(["5", "6"], [50, 50])
 
 			//console.log(newId, "includes lumen")
 			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
 
 		} else {
 			//newId = this.weighted_random(["5", "6"], [75, 25])
-			newId = this.weighted_random(["5", "6"], [70, 30])			
+			newId = this.weighted_random(["5", "6"], [50, 50])			
 			//console.log(newId, "does not include lumen")
 			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
 
@@ -2014,7 +2018,7 @@ function lineageSwitch2(lumen_id) {
 	let uniqueNeighbours 
 	// Identify PrE cell ids
 	for (let i of this.C.cellIDs()){
-		if(this.C.cellKind(i) == 4){	
+		if(this.C.cellKind(i) == 3){	
 			teIds.push(i)
 		} else if(this.C.cellKind(i) == 5){		
 			epiIds.push(i)
@@ -2068,8 +2072,95 @@ function lineageSwitch2(lumen_id) {
 		}	
 	}
 
-// Is this biological?????
+// Is this biological?
 }
+
+
+	// Compute a sorting score between EPI and PrE based on their distances to the common geometric center of the ICM. 
+	// note: this only looks at the spatial ditribution between cells, not at their angular distribution (PrE could be localized at inner part ICM, next to TE)
+	// Formula taken from Belousov et al., 2024 (https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.132.248401)
+function sortingScore(){
+	let preIds = [], epiIds = [], icmDaughters = [], totalPixels = []
+	let epiDistance = {}, preDistance = {}, com, d
+	for (let i of this.C.cellIDs()){
+		if(this.C.cellKind(i) == 5){		
+			icmDaughters.push(i)
+			epiIds.push(i)
+		} else if(this.C.cellKind(i) == 6){	
+			icmDaughters.push(i)			
+			preIds.push(i)
+		}
+	}
+	// Add all pixels from all EPI and PrE cells to one array
+	for (let j of icmDaughters){
+		let icmDaughterPix = this.C.getStat( CPM.PixelsByCell )[j]
+		totalPixels = totalPixels.concat(icmDaughterPix)
+	}
+	// Calculate common geometric center (centroid) of all pixels
+	let cvec = new Array(this.C.ndim).fill(0)
+	for( let dim = 0 ; dim < this.C.ndim ; dim ++ ){
+		
+		let mi = 0.
+		// Loop over the pixels;
+		// compute mean position per dimension with online algorithm
+		for( let j = 0 ; j < totalPixels.length ; j ++ ){
+			// Check distance of current pixel to the accumulated mean in this dim.
+			let dx = totalPixels[j][dim] - mi
+			// Update the mean with the appropriate weight. 
+			mi += dx/(j+1)
+		}			
+		// Set the mean position in the cvec vector.
+		cvec[dim] = mi
+	}
+	//console.log("Total ICM centroid is:", cvec)
+
+	// Calculate the distance of centroids to geometric center for EPI and PrE cells
+	for (let id of epiIds){
+		com = this.C.getStat(CPM.Centroids)[id]
+		d = Math.sqrt(Math.pow(cvec[0] - com[0], 2) + Math.pow(cvec[1] - com[1], 2)) 		// x, y distance relative to centroid
+		epiDistance[id] = d
+	}
+		console.log("this is the EPI distance object", epiDistance)
+	for (let id of preIds){
+		com = this.C.getStat(CPM.Centroids)[id]
+		d = Math.sqrt(Math.pow(cvec[0] - com[0], 2) + Math.pow(cvec[1] - com[1], 2)) 		// x, y distance relative to centroid
+		preDistance[id] = d
+	}
+		console.log("this is the PrE distance object", preDistance)
+
+	// Calculate the sorting index
+	// Formula: Added sign of d_pre - d_epi for all combinations of distances, multiplied by 1 / (number epi cells * number pre cells)
+	let sortingScore = 0, totalSign = 0
+	for (const [id1, d1] of Object.entries(epiDistance)){
+		for (const [id2, d2] of Object.entries(preDistance)){
+			totalSign += Math.sign(d2 - d1)
+		}
+	}
+	console.log( "totalsign",totalSign)
+	sortingScore = 1/(epiIds.length * preIds.length) * totalSign
+	console.log("At time:", sim.time, ",this is the sorting score:", sortingScore)
+/*
+	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]
+	let bxx = 0, bxy = 0, byy=0, cx, cy, x2, y2, side, T, D, x0, y0, x1, y1, L2
+
+	if (typeof cp === 'undefined'){
+		return console.log("Cellid is undefined")
+	}
+
+	// Loop over the pixels belonging to this cell
+	for( let j = 0 ; j < cp.length ; j ++ ){
+		cx = cp[j][0] - com[0] // x position rel to centroid
+		cy = cp[j][1] - com[1] // y position rel to centroid
+
+		// sum of squared distances:
+		// Covariance matrix [[Bxx, Bxy][Bxy, Byy]]
+		bxx += cx*cx
+		bxy += cx*cy
+		byy += cy*cy
+	}
+		*/
+}		
+
 
 
 // Custom drawing function 
