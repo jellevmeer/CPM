@@ -20,7 +20,7 @@ class WorkerPool {
   _initialize() {
     // Create all workers
     //for (let i = 0; i < this.numWorkers; i++) {
-    for (let i = 0; i < (this.numWorkers - 2); i++) {
+    for (let i = 0; i < (this.numWorkers - 3); i++) {             // Set your own prefered number of CPU cores here
       this._createWorker()
     }
   }

@@ -34,23 +34,6 @@ for (const grow of volstep_lumen){
 // Send the tasks to a pool of workers, stagger output until all are completed.
 // The number of workers depends on the CPU cores of your device.
 // Function includes a console timer for the duration of the worker pool, and error catchers.
-/*
-async function runTasks(tasks) {
-  
-  try {
-    // Run all tasks in parallel
-    const results = await Promise.all(
-    tasks.map(task => pool.runTask(task))
-    )
-    console.log( "done:", results)
-    // Log results
-  } catch (err) {
-    console.error('Error running tasks:', err);
-  } finally {
-    pool.close();
-  }
-}
-*/
 async function runTasks(tasks) {
   console.time(`Task`)
   try {

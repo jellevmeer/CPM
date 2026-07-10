@@ -10,23 +10,6 @@ const path = require ('path')
   // data structure should be: 
 function modelling(data) {
     //  runModel(data[0], data[1], data[2], data[3])
-/*
-  let result = []
-
-  for (let paramSet of data){
-    //console.log("this is the input:", paramSet)
-    //let sum = paramSet[0] + paramSet[1] + paramSet[2] + paramSet[3]
-    //result.push(sum)
-     let total = 0;
-    for (let i = 0; i < 1e7; i++) {
-      total += i;
-    }
-
-    result.push(paramSet + total)
-  }
-  return result
-}
-*/
   let jICM_TE = data[0]
   let jICM_lumen = data[1]
   let seed = data[2]
