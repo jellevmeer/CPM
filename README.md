@@ -1,4 +1,4 @@
-# Artistoo
+# Artistoo-based CPM
 A Cellular Potts Model (CPM) of human blastocyst development. This model can be used as framwork to study cell morphological changes during development.
 
 ## Description
@@ -11,8 +11,8 @@ The model is available as a .js file with HTML output, or a Node js script, whic
 Examples in the example folder are taken from the Artistoo page.
 
 To run parameter sweeps, a worker.js file, a worker-pool.js file, a sweep-model file and a node script are all required. The node script should
-contain a module function which wraps around the entire model, wherein input parameters can be defined. These should match the arrays of parameters in the 
-sweep-model file, see the CellSorting or the test directory as example.
+contain a module function which wraps around the entire model, where input parameters can be defined. These should match the arrays of parameters in the 
+sweep-model file, see the CellSorting or the BoundaryLength directory as example.
 
 ## Getting Started
 
