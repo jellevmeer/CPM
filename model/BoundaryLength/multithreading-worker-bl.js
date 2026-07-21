@@ -1,4 +1,4 @@
-const runModel = require('./run-model-test.js')
+const runModel = require('./run-model-bl.js')
 
 const {Worker, isMainThread, parentPort, workerData, threadId} = require('worker_threads')
 const path = require ('path')

@@ -1,9 +1,8 @@
-const runModel = require('./run-model-test.js')
-const cliProgress = require('cli-progress')
+const runModel = require('./run-model-bl.js')
 const os = require('os')
 const {Worker, isMainThread, parentPort, workerData} = require('worker_threads')
-const WorkerPool = require('./multithreading-worker-pool.js')
-const pool = new WorkerPool('./multithreading-worker.js')
+const WorkerPool = require('./multithreading-worker-pool-bl.js')
+const pool = new WorkerPool('./multithreading-worker-bl.js')
 
 // Sweep parameters - runModel input is params = jICM_TE, jICM_lumen, used_seed, volstep_lumen
 let seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
