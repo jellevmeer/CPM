@@ -57,7 +57,7 @@ class Blastomeres extends CPM.Cell {
 		this.cells[1] // cell object of cell with cellId 1
 		@type {Cell}
 		*/
-		this.cells =[new CPM.Cell(conf, 0, -1, this)]
+		this.cells = [new CPM.Cell(conf, 0, -1, this)]
 
 		/** encode cell-specific target volume for a simple growth algorithm such that the V can be halved after division
 		 * @type{Number}
@@ -117,6 +117,13 @@ class Blastomeres extends CPM.Cell {
 		*  @type{Array}
 		*/
 		this.daughterId = [this.id]
+
+		/** Tracks newCellD conversions, to supply downstream ICM divisions with a higher initial P,
+		 * to prevent the ratio of V/P from resulting in static cells due to the reduced ICM volume compared to
+		 * TE/Blastomeres.
+		*  @type{String}
+		*/
+		this.recentlyConverted = "No"	
 
 	}
 
@@ -203,6 +210,11 @@ class Blastomeres extends CPM.Cell {
 		this.C.cells[id].P = object.P, this.C.cells[id].Polarized = object.Polarized, this.C.cells[id].V = object.V, this.C.cells[id].avgDistortion = object.avgDistortion,
 		this.C.cells[id].daughterId = object.daughterId, this.C.cells[id].parentId = object.parentId, this.C.cells[id].distortion = object.distortion, 
 		this.C.cells[id].initialP = object.initialP, this.C.cells[id].initialV = object.initialV, this.C.cells[id].maxVol = object.maxVol, this.C.cells[id].nDiv = object.nDiv
+		
+		// Add an identifier for a modified perimeter inheritance
+		if (kind == 4){
+			this.C.cells[id].recentlyConverted = "Yes"
+		}
 
 	}
 }
@@ -326,39 +338,40 @@ class TE extends Blastomeres {
 		let V = parent.V
 		let P = parent.P
 
+		let birthDividePercentage = 0.5
 		let maxPercentageDev = 5
 		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
 		//let delta_VP = (maxPercentageDev) / 100
-		let vol_dev = (delta_VP * V/2)
-		let per_dev = (P * 0.65 * delta_VP)
+		let vol_dev = (V * birthDividePercentage * delta_VP)
+		let per_dev = (P * birthDividePercentage * delta_VP)
 		let j = this.C.ran(0, 1)
 
 		if (j == 0){
-			this.V = Math.round(V / 2 + vol_dev)
-			this.initialV = Math.round(V / 2 + vol_dev)
+			this.V = Math.round(V * birthDividePercentage + vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage + vol_dev)
 
-			parent.V = Math.round(V / 2 - vol_dev)
-			parent.initialV = Math.round(V / 2 - vol_dev)
+			parent.V = Math.round(V * birthDividePercentage - vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage - vol_dev)
 
-			this.P = P * 0.65 + per_dev
-			this.initialP = P * 0.65 + per_dev
+			this.P = P  * birthDividePercentage + per_dev
+			this.initialP = P  * birthDividePercentage + per_dev
 
-			parent.P = P * 0.65 - per_dev
-			parent.initialP = P * 0.65 - per_dev
+			parent.P = P * birthDividePercentage - per_dev
+			parent.initialP = P * birthDividePercentage - per_dev
 
 		}
 		if (j == 1){
-			this.V = Math.round(V / 2 - vol_dev)
-			this.initialV = Math.round(V / 2 - vol_dev)
+			this.V = Math.round(V * birthDividePercentage - vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage - vol_dev)
 
-			parent.V = Math.round(V / 2 + vol_dev)
-			parent.initialV = Math.round(V / 2 + vol_dev)
+			parent.V = Math.round(V * birthDividePercentage + vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage + vol_dev)
 
-			this.P = P * 0.65 - per_dev
-			this.initialP = P * 0.65 - per_dev
+			this.P = P * birthDividePercentage - per_dev
+			this.initialP = P * birthDividePercentage - per_dev
 
-			parent.P = P * 0.65	+ per_dev				
-			parent.initialP = P * 0.65	+ per_dev		
+			parent.P = P  * birthDividePercentage + per_dev				
+			parent.initialP = P  * birthDividePercentage + per_dev		
 	
 		}
 		//Inherit polarization of parent cellIds 
@@ -394,7 +407,7 @@ class ICM extends Blastomeres {
 		this.disconnectedness = 0
 	}
 	
-	 /*
+	/* 
 	birth(parent){
 		this.parentId = parent.parentId.slice()
 		this.parentId.push(parent.id)
@@ -408,46 +421,55 @@ class ICM extends Blastomeres {
 		//Inherit polarization of parent cellIds 
 		this.Polarized = parent.Polarized
 	}
-	 
+	 */
 	birth(parent){
 		this.parentId = parent.parentId.slice()
 		this.parentId.push(parent.id)
 
+		// Change perimeter inheritance to account for the change in TE/Blastomere and ICM size 
+		let perimeterDividePercentage = 0.5
+		if (parent.recentlyConverted == "Yes"){
+			perimeterDividePercentage  = 0.65
+			parent.recentlyConverted = "No"
+		} 
+		//console.log("divided parentid = ", parent.id, "with a perimeterdividevalue of:", perimeterDividePercentage)
+
+		let birthDividePercentage = 0.5
 		let V = parent.V, P = parent.P
 		let maxPercentageDev = 5
 		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
-		let vol_dev = (delta_VP * V/2)
-		let per_dev = (P * 0.50 * delta_VP)
+		let vol_dev = (V * birthDividePercentage * delta_VP)
+		let per_dev = (P * perimeterDividePercentage * delta_VP)
 		let j = this.C.ran(0, 1)
 
 		if (j == 0){
-			this.V = Math.round(V / 2 + vol_dev)
-			this.initialV = Math.round(V / 2 + vol_dev)
+			this.V = Math.round(V * birthDividePercentage + vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage + vol_dev)
 
-			parent.V = Math.round(V / 2 - vol_dev)
-			parent.initialV = Math.round(V / 2 - vol_dev)
+			parent.V = Math.round(V * birthDividePercentage - vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage - vol_dev)
 
-			this.P = P * 0.50 + per_dev
-			this.initialP = P * 0.50 + per_dev
+			this.P = P * perimeterDividePercentage + per_dev
+			this.initialP = P * perimeterDividePercentage + per_dev
 
-			parent.P = P * 0.50 - per_dev
-			parent.initialP = P * 0.50 - per_dev
+			parent.P = P * perimeterDividePercentage - per_dev
+			parent.initialP = P * perimeterDividePercentage - per_dev
 
 		}
-		if (j == 1){
-			this.V = Math.round(V / 2 - vol_dev)
-			this.initialV = Math.round(V / 2 - vol_dev)
+		else if (j == 1){
+			this.V = Math.round(V * birthDividePercentage - vol_dev)
+			this.initialV = Math.round(V * birthDividePercentage - vol_dev)
 
-			parent.V = Math.round(V / 2 + vol_dev)
-			parent.initialV = Math.round(V / 2 + vol_dev)
+			parent.V = Math.round(V * birthDividePercentage + vol_dev)
+			parent.initialV = Math.round(V * birthDividePercentage + vol_dev)
 
-			this.P = P * 0.50 - per_dev
-			this.initialP = P * 0.50 - per_dev
+			this.P = P * perimeterDividePercentage - per_dev
+			this.initialP = P * perimeterDividePercentage - per_dev
 
-			parent.P = P * 0.50	+ per_dev				
-			parent.initialP = P * 0.50	+ per_dev		
+			parent.P = P * perimeterDividePercentage + per_dev				
+			parent.initialP = P * perimeterDividePercentage	+ per_dev		
 		}
-	}	*/		
+	}		
 }
 
 
@@ -465,7 +487,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 42,							// Seed for random number generation.
+		seed : 4,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -480,9 +502,9 @@ let config = {
 		J : [ 
 		 	[0, 20, 1000, 20, 120],                  	// Background cell
             [20, 15, 20, 1, 1],                   		// Blastomeres
-			[1000, 20, 18, 20, 40],                   	// Lumen 
-			[20, 1, 20, 0, 20],							// TE
-			[120, 1, 40, 20, 1]							// ICM
+			[1000, 20, 18, 20, 25],                   	// Lumen 
+			[20, 1, 20, 1, 35],							// TE
+			[120, 1, 25, 35, 1]							// ICM
 		],
 
 		
@@ -494,12 +516,12 @@ let config = {
 		// If (target volume - current volume) is < VOLCHANGE_THRESHOLD, 
 		// target volume for a cell is increased by VOLSTEP
 		VOLCHANGE_THRESHOLD : 10,
-		VOLSTEP : [0, 0.01, 0.04, 0.01, 0.01],
-		PERSTEP : [0, 0.0042, 0.025, 0.005, 0.005],
+		VOLSTEP : [0, 0.01, 0.08, 0.01, 0.01],
+		PERSTEP : [0, 0.0042, 0.005, 0.01, 0.01],
 
 		// PerimeterConstraint parameters
-		LAMBDA_P: [0, 2, 0, 1, 2],				    	// PerimeterConstraint importance per cellkind
-		P: [0,900, 200, 100, 100] 				    	// Target perimeter of each cellkind		
+		LAMBDA_P: [0, 2, 0, 1, 1],				    	// PerimeterConstraint importance per cellkind
+		P: [0,900, 100, 200, 200] 				    	// Target perimeter of each cellkind		
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -513,8 +535,8 @@ let config = {
 		RUNTIME_BROWSER : "Inf",
 		
 		// Visualization
-		CANVASCOLOR : "F8D2CB",				//EEEEEE
-		CELLCOLOR : ["000000", "0000FF", "6F2DA8", "ED7117"],
+		CANVASCOLOR : "EEEEEE",				
+		CELLCOLOR : ["000000", "0000FF", "4169E1", "ED7117"],
 		SHOWBORDERS : [true, true, true, true],					// Should cellborders be displayed?
 	//SHOWBORDERS : [true, false, false, false],			// Should cellborders be displayed?
 
@@ -719,7 +741,7 @@ function postMCSListener(){
 		}
 	}
 
-	if (total_cells >= 16 && icmDivisionArray.length > 0  && this.C.cells[lumen_id].V > 1500){
+	if (total_cells >= 16 && icmDivisionArray.length > 0  && this.C.cells[lumen_id].V > 200){
 
 		icmDivisionArray = this.cellDivision(icmDivisionArray)
 		// input of this.cellDivision should be the icmDivisionArray
@@ -1058,7 +1080,7 @@ function perimeterCounter(neigh_borderpixels){
 	// Input is an array of ICM cells
 function cellDivision(idArray){
 
-	if (this.C.random() < 0.01){
+	if (this.C.random() < 0.005){
 		//console.log("these are the ICM cells still able to divide pre-shuffle:", idArray)
 		idArray = this.arrayShuffle(idArray)
 		let id = idArray[0]
@@ -1187,7 +1209,10 @@ function newCellDivision(){
 
 		// Assign a maxVolume to cells based on a random function influenced by the cellshape. 
 		// With the option to add extra conditionals for division (see avgDistortion requirement TE cells).
-		if (this.C.cellKind(i) == 3 && cell.avgDistortion > 5 && this.C.cells[lumen_id].V > 2500){ 		
+		// maxVol factor should be roughly equal to 1/birth inheritance (defined in class of celltype), 
+		// where birth inheritance is the 0.6-0.7* value that defines how much cell volume/perimeter gets split 
+		// between daughter and parent cells.
+		if (this.C.cellKind(i) == 3 && cell.avgDistortion > 5 && this.C.cells[lumen_id].V > 2000){ 		
 			// An elongated cell shape increases the chance of cellgrowth and mitosis
 			let random = 0.001 * cell.avgDistortion		
 			if (this.C.random() < random && cell.maxVol == 0 && (te_cells + te_cells_tbd) < global_total_TE){
@@ -1195,11 +1220,11 @@ function newCellDivision(){
 				cell.divisionState = "Yes"
 				te_cells_tbd++
 			}
-		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 5000 && icmDivisionArray.length == 0){		
+		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 7500 && icmDivisionArray.length == 0){		
 			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (icm_cells + icm_cells_tbd) < global_total_ICM){
 			//	cell.maxVol = this.C.ran(175, 225) / 100 
-				cell.maxVol = this.C.ran(125, 150) / 100
+				cell.maxVol = this.C.ran(150, 175) / 100
 				cell.divisionState = "Yes"
 				icm_cells_tbd++
 			}
@@ -1542,7 +1567,7 @@ function cavitation(){
 	console.log(multicellular_borderpixels)
 	
 	// Randomly select several indices to seed lumen at, and collect their array coordinates. 
-	// The variable in the while loops indicates the number of lumens that you want to seed.
+	// The variable (nr_lumen) indicates the number of lumens that you want to seed.
 	let seedingCoordinates = []
 	let sample, seeding_method, nr_lumen = 0
 	let method = this.C.ran(0, 1)
@@ -1835,6 +1860,16 @@ function changePolarColor(){
 }
 
 function resetButton(){
+/*
+	sim.toggleRunning()
+	for( let id of sim.C.cellIDs() ){
+		sim.gm.killCell(id)
+	}
+	sim.initializeGrid()
+	sim.time=0
+	sim.toggleRunning()
+*/
+	
     sim.C.reset()
     const canvas = document.querySelector('canvas');
     if (canvas) {

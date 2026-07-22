@@ -1098,6 +1098,10 @@ function arrayShuffle(array){
 
 
 	// Divide the zygote into smaller blastomeres, whereby they are divided according to the largest 2 cells, 4 cells etc. 
+	// This function first constructs an array of all the large blastomeres that have not yet divided in that cleavage cycle.
+	// Then it randomly selects one blastomere from these to undergo a cleavage division.
+	// The mimimum time between cleavage divisions within a cycle depends on the random constraint, while
+	// the minimum delay between cleavage cycles depends on the div_time variable. 
 function zygoteDivision (){	
 	// add the initializer if not already there
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
@@ -1194,7 +1198,6 @@ function zygoteDivision (){
 	}
 }
 
-	// This iterator returns coordinates and cellid for all non-background border pixels on the grid. 
 	// This function creates an object with a key for each cell on the grid, and as
 	// corresponding value an array with all the borderpixels of that cell. 
 	// Each pixel is stored by its ArrayCoordinate.
@@ -1515,8 +1518,7 @@ function polarization(){
 	 *  @param {Number} linSwitchTime - Maximum MCS that a TE cell is internalized.
 	 *  @returns {Number} cellid - id of the cell that has switched from lineage (TE --> ICM).
 	*/
-	let linSwitchTime = 200
-function lineageSwitch(linSwitchTime){
+function lineageSwitch(){
 	// Loop over TE cellborderpixels, if the cell does not contain background identities, the internal counter is increased.
 	let bg_borderpixels_te = this.backgroundBorderpixelCounter(this.borderPixelCounter(3))
 	for (let cellid of Object.keys(bg_borderpixels_te)){
@@ -1525,7 +1527,7 @@ function lineageSwitch(linSwitchTime){
 		}
 
 		// Asymmetrically divided and subsequently internalized cells get reassigned to the Apolar class
-		if (bg_borderpixels_te[cellid].length == 0 && this.C.cells[cellid].internalCounter > linSwitchTime){
+		if (bg_borderpixels_te[cellid].length == 0 && this.C.cells[cellid].internalCounter > 200){
 			this.C.cells[cellid].Polarized = "Apolar"
 			this.C.cells[cellid].newCellID(cellid, 4)
 			console.log("Converted cellid" + "\t" + cellid + "\t" + "from TE to ICM following a period of internalization.")
@@ -2308,7 +2310,7 @@ let multiCellularCounter = 0
 			for (const [cellid, length] of Object.entries(value)){
 				//console.log("cluster pre - 2nd for loop key:", cellid, "value:", length)
 				
-				// identify unique neighbouring PrE cells and save them to the array
+				// identify unique neighbouring cells and save them to the array
 				if (!neighbourCells.includes(cellid) && icmDaughters.includes(cellid)){
 					neighbourCells.push(cellid)
 					//console.log("neighbourCells:", neighbourCells )
@@ -2330,7 +2332,7 @@ let multiCellularCounter = 0
 		"connectedness percentage:", icmConnectedness)
 
 
-// Output of the measurements
+// Output of the measurements - these are recorded through the 'run-model-cellsorting.js' script
 	console.log("At time:", sim.time, ",this is the sorting score:", sortingScore, "with ICM shape:", shape, 
 	"and percentage distorted cells:", totalDisconnectedness)
 	console.log("avg V cells:", avgV,"Avg P cells:", avgP,"Avg ratio cells:", avgRatio)
@@ -2340,6 +2342,8 @@ let multiCellularCounter = 0
 
 
 // Custom drawing function 
+// Change the colour of the cells, and add a common border colour.
+// Allows for the lineage tracing of cells + polarization visualization in the HTML output.
 function drawCanvas(){
 	// Add the canvas if required
 	if( !this.helpClasses["canvas"] ){ this.addCanvas() }
@@ -2432,6 +2436,7 @@ function changePolarColor(){
 	}
 }
 
+// To do: does not work yet!
 function resetButton(){
 /*
 	sim.toggleRunning()
@@ -2442,7 +2447,6 @@ function resetButton(){
 	sim.time=0
 	sim.toggleRunning()
 */
-	
     sim.C.reset()
     const canvas = document.querySelector('canvas');
     if (canvas) {
@@ -2451,6 +2455,8 @@ function resetButton(){
     initialize()
 }
 
+// This function fills up the adhesion table with the current values defined in the configuration.
+// This function sould be the first thing that is called in postMCSListener after the simulation is initialized. 
 function htmlSymmetricalMatrix(){
 	
 	// Initialization: looping over the adhesion matrix and assigning conf.J values to the html table
@@ -2462,6 +2468,7 @@ function htmlSymmetricalMatrix(){
 			adhesion1.value = sim.C.conf.J[row][col]	
 
 			// Get the id of the changed td and update J in sim.conf
+			// Also ensure that the matrix's symmetricity is kept
 			adhesion1.addEventListener("input", function(e){
 				let td_id_row = e.target.id.substring(1,2)
 				let td_id_col = e.target.id.substring(2,3)
@@ -2483,7 +2490,7 @@ function htmlSymmetricalMatrix(){
 	}
 }
 
-	// Transfer input from html box to sim.C varaible in order to colour specific cellIds with drawCanvas() 
+	// This function transfers the input from HTML boxes to sim.C variables to colour specific cellIds with drawCanvas() 
 	// Example input = "2, 3" to visualize cell Id 2 and 3
 function storeInput(){
 	let inputArray = []
@@ -2533,6 +2540,8 @@ function storeInput(){
 </form>
 </div>
 
+<!--This table contains all combinations of adhesion values, including their own identifier.
+	The function htmlSymmetricalMatrix is used to assign values to this table-->
 <div class="slidecontainer">
 <form autocomplete="off">
 <table id = "jtable">
