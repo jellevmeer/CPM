@@ -8,16 +8,16 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 
 	// Value logging to txt file
 	const file_name = "CSParameters-Epi-Pre"
-	const ext = "-per_6040_1_3.txt"
+	const ext = "-test4.txt"
 
 	const filepath = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\CellSorting\\" + file_name + ext 
+	const filepath_values = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\CellSorting\\" + file_name  + "_2" + ext
 
-	// Writable arrays to transfer to filepath:
+	// Writable arrays to transfer to filepath/filepath_values:
 	const measurement = []
 	const values = []
 
-	let outputSortingScore = [], outputShape = [], outputV = [], outputP = [], outputRatio = []
-	let outputTotalDisconnectedness = [], outputIcmConnectedness = []
+
 
 	/*	----------------------------------
 		CELL CLASSES
@@ -669,7 +669,7 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 			// Cells on the grid
 			NRCELLS : [1, 0, 0, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
 			BURNIN : 100,
-			RUNTIME : 13001,
+			RUNTIME : 5001,
 			RUNTIME_BROWSER : "Inf",
 			
 			// Visualization
@@ -682,11 +682,11 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 			zoom : 2,												// zoom in on canvas with this factor.
 			
 			// Output images
-			SAVEIMG : false,							// Should a png image of the grid be saved
+			SAVEIMG : true,							// Should a png image of the grid be saved
 			// during the simulation?
-			IMGFRAMERATE : 20,							// If so, do this every <IMGFRAMERATE> MCS.
-			SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/CellSorting",	// ... And save the image in this folder.
-			EXPNAME : "CellSorting"+ "_" + seed + "_" + jEpi_Epi + "_" + jPre_Pre + "_" + perimeterSize,				// Used for the filename of output images.
+			IMGFRAMERATE : 10,							// If so, do this every <IMGFRAMERATE> MCS.
+			SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/CellSortingVisual",	// ... And save the image in this folder.
+			EXPNAME : "CellSortingVisual"+ "_" + seed + "_" + jEpi_Epi + "_" + jPre_Pre + "_" + perimeterSize,				// Used for the filename of output images.
 			
 			// Output stats etc
 			STATSOUT : { browser: false, node: false }, 	// Should stats be computed?
@@ -846,7 +846,7 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 		// First differentiation event
 		// Loop over all cellIds, if they are polarized assign them to the TE class, if they are Apolar they become ICM
 		// Not yet polarized cells are differentiated based on their position in the embryo
-		if (total_cells == 16 ){ //&& differentiation1 < 0
+		if (total_cells == 16 && div_time > 50 ){ //&& differentiation1 < 0
 			for( let i of this.C.cellIDs()){
 				if (this.C.cellKind(i) == 1){
 					if( this.C.cells[i].Polarized == "Polar"){		
@@ -872,7 +872,7 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 		} 
 
 		// Cavitation can be staggered with the div_time parameter to allow cell differentiation upon formation of the 16th cell prior to lumen formation
-		if (total_cells >= 16 && cavitationCount < 1 && div_time > 50){
+		if (total_cells >= 16 && cavitationCount < 1 && div_time > 500){
 			this.cavitation()
 			cavitationCount++
 
@@ -992,57 +992,18 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 				}
 			}	
 		}
-		// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window
-		if (sim.time >= 12000 && this.cell_number([4]) == 0){
+		// Calculate the sorting score
+		if (this.cell_number([4]) == 0 && this.C.cells[lumen_id].V >= second_differentiationV){
 			//this.lineageSwitch2(lumen_id)
 			this.sortingScore()
 		}
-
-		// Save the measurements to a specific output file
 		if (sim.time + 1 == this.conf.RUNTIME){
-//let outputSortingScore = [], outputShape = [], outputV = [], outputP = [], outputRatio = []
-//let outputTotalDisconnectedness = [], outputIcmConnectedness = []
-		
-	// Calculate the average of the measurements over 12k-13k MCS
-	let sorting= 0, O_sorting= 0, shape= 0, O_shape= 0, vol= 0, O_volume= 0, per= 0, O_perimeter= 0
-	let rat= 0, O_ratio= 0, totDiscon= 0, O_totDiscon= 0, icmcon= 0, O_icmcon = 0
-		for (let j of outputSortingScore){
-			sorting += j
+			//this.outputPNG()
+			//this.dataLogger(filepath, measurement)
 		}
-		O_sorting = sorting / outputSortingScore.length
-		for (let j of outputShape){
-			shape += j
-		}
-		O_shape = shape / outputShape.length
-		for (let j of outputV){
-			vol += j
-		}
-		O_volume = vol / outputV.length
-		for (let j of outputP){
-			per += j
-		}
-		O_perimeter = per / outputP.length
-		for (let j of outputRatio){
-			rat += j
-		}
-		O_ratio = rat / outputRatio.length
-		for (let j of outputTotalDisconnectedness){
-			totDiscon += j
-		}
-		O_totDiscon = totDiscon / outputTotalDisconnectedness.length
-		for (let j of outputIcmConnectedness){
-			icmcon += j
-		}
-		O_icmcon = icmcon / outputIcmConnectedness.length
 
-		let data = String([seed, sim.time, jEpi_Epi, jPre_Pre, perimeterSize, O_sorting, O_shape, 
-			O_volume, O_perimeter, O_ratio, O_totDiscon, O_icmcon])
-		measurement.push(data)
+	}
 
-		this.dataLogger(filepath, measurement)
-		//this.outputPNG()
-		}
-	} 
 
 
 		/**
@@ -2035,9 +1996,9 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 
 			// If the chosen cell is next to the lumen it could have a higher chance of differentiating into PrE 
 			if (tbd_cell_boundary_ids.includes(lumen_id)){	
-				//newId = this.weighted_random(["5", "6"], [50, 50])
+				newId = this.weighted_random(["5", "6"], [50, 50])
 				//newId = this.weighted_random(["5", "6"], [0, 100])
-				newId = this.weighted_random(["5", "6"], [40, 60])
+				//newId = this.weighted_random(["5", "6"], [40, 60])
 				newIdInt = parseInt(newId[0])
 				//console.log(newId, "includes lumen")
 
@@ -2054,9 +2015,9 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 			} 	
 			// If the chosen cell is not next to the lumen it could have a higher chance of differentiating into EPI 
 			else {
-				//newId = this.weighted_random(["5", "6"], [50, 50])
+				newId = this.weighted_random(["5", "6"], [50, 50])
 				//newId = this.weighted_random(["5", "6"], [100, 0])
-				newId = this.weighted_random(["5", "6"], [60, 40])		
+				//newId = this.weighted_random(["5", "6"], [60, 40])		
 				newIdInt = parseInt(newId[0])
 				//console.log(newId, "does not include lumen")
 
@@ -2286,96 +2247,13 @@ module.exports = function model(jEpi_Epi, jPre_Pre, seed, perimeterSize){
 		// Calculating the average shape over x MCS --> done downstream in R
 		shape = L1 / L2
 
-
-	// Calculate the connectedness of the EPI/PrE
-		// Use the Connectedness stat to log the ratio between disconnected / non-disconnected cells
-		let disconnectedCells = 0
-		let connectedness = this.C.getStat(CPM.Connectedness)
-		for (const[cell, con] of Object.entries(connectedness)){
-			//console.log("cell:", typeof(cell), cell, "con:", typeof(con), con)
-			if (icmDaughters.includes(cell) && con < 1){
-				disconnectedCells++
-			}
-		}	
-		let totalDisconnectedness = disconnectedCells / icmDaughters.length
-
-	// Calculate the average P / V ratio of Epi/PrE & log the average value for both parameters
-		// Useful for comparing the effect of increasing the perimeter compared to the volume,
-		// since this has a different effect based on the magnitude of these parameters.
-		let totalVArray = [], avgV = 0, totalPArray = [], avgP = 0, ratioArray = [], avgRatio = 0
-		let vTotal = 0, pTotal = 0, ratioTotal = 0
-		for (let cell of icmDaughters){
-			totalVArray.push(this.C.cells[cell].V)
-			totalPArray.push(this.C.cells[cell].P)
-			ratioArray.push(this.C.cells[cell].P / this.C.cells[cell].V)
-		}
-		// Calculate the average V, P and ratio P/V for all the EPI/PrE cells combined in an array
-		for (let volume of totalVArray){
-			vTotal += volume
-		}
-		avgV = vTotal / totalVArray.length
-
-		for (let perimeter of totalPArray){
-			pTotal += perimeter
-		}
-		avgP = pTotal / totalPArray.length
-
-		for (let ratio of ratioArray){
-			ratioTotal += ratio
-		}
-		avgRatio = ratioTotal / ratioArray.length
-
-// Log the disconnectedness of the ICM
-	let randomCell = [], neighbourCells = [], boundaryObject = {}, ranNeighInterface = {}
-	// Identify a single cell, obtain the unique neighbouring PrE/EPI cells, and check their neighbours too
-	randomCell.push(this.arrayShuffle(icmDaughters)[0])
-	neighbourCells.push(randomCell[0])
-	boundaryObject = this.C.getStat(CPM.CellNeighborList)
-	ranNeighInterface = objectSubsetter(boundaryObject, neighbourCells)
-
-let multiCellularCounter = 0
-	while (multiCellularCounter < 1){
-		for (const [key, value] of Object.entries(ranNeighInterface)){
-			//console.log("cluster pre - 1st for loop key:", key, "value:", value)
-			
-			// loop over the neighbouring cells
-			for (const [cellid, length] of Object.entries(value)){
-				//console.log("cluster pre - 2nd for loop key:", cellid, "value:", length)
-				
-				// identify unique neighbouring PrE cells and save them to the array
-				if (!neighbourCells.includes(cellid) && icmDaughters.includes(cellid)){
-					neighbourCells.push(cellid)
-					//console.log("neighbourCells:", neighbourCells )
-					
-					// Add the unique neighbour to the boundary object to check for more neighbours
-					ranNeighInterface = objectSubsetter(boundaryObject, neighbourCells)
-					//console.log("pre cell id boundary cells:", ranNeighInterface)
-
-					// reset the while loop Counter to check out the new boundary cells
-					multiCellularCounter--
-				}
-			}
-		}
-		multiCellularCounter++
-	}	 
-	let uniqueCellsIcmInterface  = neighbourCells.length
-	let icmConnectedness = uniqueCellsIcmInterface / icmDaughters.length
 	//console.log(sim.time, "uniqueCellsIcmInterface:", uniqueCellsIcmInterface, "total icm:", icmDaughters.length,
 	//	"connectedness percentage:", icmConnectedness)
 
-
-	/*	// Collect all the scores /icm shapes to later send them to a .txt file
-		let data = String([seed, sim.time, jEpi_Epi, jPre_Pre, perimeterSize, sortingScore, shape, 
-			avgV, avgP, avgRatio, totalDisconnectedness, icmConnectedness])
+		// Collect all the scores /icm shapes to later send them to a .txt file
+		let data = String([seed, sim.time, jEpi_Epi, jPre_Pre, perimeterSize, sortingScore, shape])
 		measurement.push(data)
-	*/
-	outputSortingScore.push(sortingScore)	
-	outputShape.push(shape)
-	outputV.push(avgV)	
-	outputP.push(avgP)	
-	outputRatio.push(avgRatio)	
-	outputTotalDisconnectedness.push(totalDisconnectedness)	
-	outputIcmConnectedness.push(icmConnectedness)	
+	
 	}		
 
 

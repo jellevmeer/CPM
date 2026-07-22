@@ -1,4 +1,5 @@
-const runModel = require('./run-model-cellsorting.js')
+//const runModel = require('./run-model-cellsorting-test.js')   // Basic model used for testing 
+const runModel = require('./run-model-cellsorting.js')          // Actual model used for sorting measurements
 
 const {Worker, isMainThread, parentPort, workerData, threadId} = require('worker_threads')
 const path = require ('path')
