@@ -8,6 +8,8 @@ const ext = ".txt"
 
 const filepath = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name + ext
 const filepath_values = "C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\ParameterOptimizationICM-TE-LUMEN\\" + file_name  + "_2" + ext
+
+const used_seed= 2
 /*
 fs.appendFileSync("C:\\Users\\jelle\\Rstudio\\my_WD\\raw_data\\Artistoo\\Test.txt", data, 'utf8', (err) => {
   if (err) {
@@ -456,7 +458,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 42,							// Seed for random number generation.
+		seed : used_seed,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -501,7 +503,7 @@ let config = {
 		// Cells on the grid
 		NRCELLS : [1, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
 		BURNIN : 100,
-		RUNTIME : 4000,
+		RUNTIME : 5000,
 		RUNTIME_BROWSER : "Inf",
 		
 		// Visualization
@@ -514,11 +516,11 @@ let config = {
 		zoom : 2,												// zoom in on canvas with this factor.
 		
 		// Output images
-		SAVEIMG : true,							// Should a png image of the grid be saved
+		SAVEIMG : false,							// Should a png image of the grid be saved
 		// during the simulation?
-		IMGFRAMERATE : 25,							// If so, do this every <IMGFRAMERATE> MCS.
-		SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/CavitationDifferentiation2",	// ... And save the image in this folder.
-		EXPNAME : "CavitationDifferentiation2", 				// Used for the filename of output images.
+		IMGFRAMERATE : 10,							// If so, do this every <IMGFRAMERATE> MCS.
+		SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/MCSOptimizationICM-TE-Lumen",	// ... And save the image in this folder.
+		EXPNAME : "MCSOptimizationICM-TE-Lumen" + used_seed, 				// Used for the filename of output images.
 		
 		// Output stats etc
 		STATSOUT : { browser: false, node: true }, 	// Should stats be computed?
@@ -664,8 +666,9 @@ function postMCSListener(){
 		this.outputPNG()
 		pictureCounter++
 	}
-	if (this.C.cells[lumen_id].V == 500){
+	if (this.C.cells[lumen_id].V == 500 && pictureCounter < 3){
 		this.outputPNG()
+		pictureCounter++
 	}
 */
 
@@ -746,30 +749,27 @@ function postMCSListener(){
 	let blIcm_TE1, blIcm_TE2, blIcm_TE3, blIcm_TE4, blIcm_TE5
 	let blIcm_Lumen1, blIcm_Lumen2, blIcm_Lumen3, blIcm_Lumen4, blIcm_Lumen5
 
-/*
+
 // Boundary length measurements:
-if (this.C.cells[lumen_id].V == 1000 && pictureCounter < 3){		
+if (this.C.cells[lumen_id].V > 150 && boundaryLengthMeasurements < 1){		
+	let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
+	bltime1 = sim.time
+
+	let data = String([this.C.conf.seed, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
+	this.dataLogger(filepath, data)
+	boundaryLengthMeasurements++
+}
+
+if (this.C.cells[lumen_id].V % 500 == 0 && timeCounter < 1){		//Measurement every 2500 Vlumen --> 0, 2500, 5000, 7500, 10000, 12500
 	let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
 	bltime1 = sim.time
 
 	let data = String([this.C.conf.seed, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
 	this.dataLogger(filepath, data)
 
-	this.outputPNG()
-	pictureCounter++
-
+	//this.outputPNG()
 }
 
-if (this.C.cells[lumen_id].V % 2500 == 0 && timeCounter < 1){		//Measurement every 2500 Vlumen --> 0, 2500, 5000, 7500, 10000, 12500
-	let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
-	bltime1 = sim.time
-
-	let data = String([this.C.conf.seed, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
-	this.dataLogger(filepath, data)
-
-	this.outputPNG()
-}
-*/
 /*
 if (this.C.cells[lumen_id].V == 2500 && boundaryLengthMeasurements < 1){
 		let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
@@ -802,14 +802,17 @@ if (this.C.cells[lumen_id].V == 2500 && boundaryLengthMeasurements < 1){
 	}
 	
 // measure every X MCS after max lumen is reached for Y times
-/*	
+
 	if (this.C.cells[lumen_id].V == 12500  && sim.time == (timeLumenGrowth + 250)){		//Measurement every 250MCS post max growth
 		let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
 		bltime1 = sim.time
 
 		let data = String([this.C.conf.seed, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
 		this.dataLogger(filepath, data)
-	}
+		this.outputPNG()
+		}
+/*
+
 	if (this.C.cells[lumen_id].V == 12500  && sim.time == (timeLumenGrowth + 500)){		//Measurement every 250MCS post max growth
 		let [blIcm_TE1, blIcm_Lumen1] = this.boundaryLength()
 		bltime1 = sim.time
@@ -830,10 +833,9 @@ if (this.C.cells[lumen_id].V == 2500 && boundaryLengthMeasurements < 1){
 
 		let data = String([this.C.conf.seed, bltime1, blIcm_TE1 , blIcm_Lumen1, this.C.cells[lumen_id].V])
 		this.dataLogger(filepath, data)
-
-		this.outputPNG()
-	}
 */
+
+
 
 /*
 	if (this.C.cells[lumen_id].V == 12500 && boundaryLengthMeasurements < 4  && sim.time == (timeLumenGrowth + 250)){
@@ -848,7 +850,6 @@ if (this.C.cells[lumen_id].V == 2500 && boundaryLengthMeasurements < 1){
 		console.log("time of measurement5:", bltime5, "ICM-TE:", blIcm_TE5, "ICM-Lumen:", blIcm_Lumen5)
 	}
 */
-/*
 	// Fuse the lumen into one cell id
 	if (this.C.cells[lumen_id].V == 12500 && fusionCount < 1 && sim.time == (timeLumenGrowth + 1000)){
 		this.fusion()
@@ -891,7 +892,7 @@ if (this.C.cells[lumen_id].V == 2500 && boundaryLengthMeasurements < 1){
 		let data = String([this.C.conf.seed, sim.time, "Shape Zygote", this.C.cells[1].distortion])
 		this.dataLogger(filepath_values, data)
 	}
-*/	
+	
 }
 
 	/**
@@ -1038,7 +1039,7 @@ function zygoteDivision (){
 			}
 
 			// Console log for time, all divided cellIds, cellID parent cell + target volume parent, cellID daughter cell + target volume daughter cell
-			console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
+			//console.log(sim.time + "\t" +  divided_cells + "\t" + random_cell + "\t" + sim.C.cells[random_cell].V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V )
 		}		
 
 	}
@@ -1166,8 +1167,8 @@ function cellDivision(idArray){
 			}
 			// Change idArray after divisions
 			idArray.splice(0, 1)
-			console.log(sim.time + "\t" + id + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V
-			+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
+			//console.log(sim.time + "\t" + id + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V
+			//+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
 			//console.log("these are the ICM cells still able to divide: post-shuffle/selection", idArray)
 			
 		}
@@ -1225,8 +1226,8 @@ function cellGrowth(){
 						let cellid = this.C.cells[lastnewdiv].parentId[i]
 						this.C.cells[cellid].daughterId.push(lastnewdiv) 
 					}
-					console.log(sim.time + "\t" + i + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V
-						+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
+					//console.log(sim.time + "\t" + i + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V
+					//	+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
 				
 
 			} else if (cell.V < (cell.maxVol * cell.initialV) && cell.maxVol > 0) {
@@ -1308,9 +1309,9 @@ function newCellDivision(){
 						let cellid = this.C.cells[lastnewdiv].parentId[i]
 						this.C.cells[cellid].daughterId.push(lastnewdiv) 
 					}
-					console.log("newCellDivision function:")
-					console.log(sim.time + "\t" + cell.id + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V 
-					+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
+					//console.log("newCellDivision function:")
+					//console.log(sim.time + "\t" + cell.id + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V 
+					//+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
 				
 			} // Cell grows if maxVol is not yet reached (constant increase of cell volume and perimeter)
 			else if (cell.V < (cell.maxVol * cell.initialV)){	
@@ -1637,8 +1638,8 @@ function cavitation(){
 	}
 	console.log(sim.time,"The lumen has been seeded at:", seedingCoordinates)
 
-	let data = String([this.C.conf.seed, sim.time, "Seeding method:", method])
-//	this.dataLogger(filepath_values, data)
+	let data = String([this.C.conf.seed, sim.time, "Seeding method", method])
+	this.dataLogger(filepath_values, data)
 
 	// Loop over the randomly sampled array coordinates and seed them on the grid
 	for (let coordinate of seedingCoordinates){
@@ -1800,8 +1801,8 @@ function boundaryLength(){
 		}	
 	}
 	//console.log("this is icm boundary", ICM_boundary)
-	console.log("Boundary ICM with te", ICM_boundary_TE, "value:", ICM_boundary_TE_value)
-	console.log("Boundary ICM with lumen", ICM_boundary_lumen, "value:", ICM_boundary_lumen_value)
+	//console.log("Boundary ICM with te", ICM_boundary_TE, "value:", ICM_boundary_TE_value)
+	//console.log("Boundary ICM with lumen", ICM_boundary_lumen, "value:", ICM_boundary_lumen_value)
 
 	return [ICM_boundary_TE_value, ICM_boundary_lumen_value]
 }

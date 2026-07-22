@@ -607,7 +607,7 @@ let config = {
 	conf : {
 		// Basic CPM parameters
 		torus : [false,false],				// Should the grid have linked borders?
-		seed : 5,							// Seed for random number generation.
+		seed : 2,							// Seed for random number generation.
 		T : 20,								// CPM temperature
 		
 		// Defining CELLS loads CPMEvol instead of CPM
@@ -626,7 +626,7 @@ let config = {
 			[20, 1, 20, 1, 35, 20, 25],							// TE
 			[120, 1, 25, 35, 1, 5, 10],							// ICM
 			[120, 1, 65, 20, 5, 1, 10],							// Epiblast
-			[120, 1, 30, 25, 10, 10, 3]							// PrE
+			[120, 1, 30, 25, 10, 10, 7]							// PrE
 		],
 
 		
@@ -643,7 +643,13 @@ let config = {
 
 		// PerimeterConstraint parameters
 		LAMBDA_P: [0, 2, 0, 1, 1, 0.5, 0.5],				    	// PerimeterConstraint importance per cellkind
-		P: [0,900, 100, 200, 200, 200, 200] 				    	// Target perimeter of each cellkind		
+		P: [0,900, 100, 200, 200, 200, 200] 				    	// Target perimeter of each cellkind	
+		
+		// Keep in mind that the Volume (V) and Perimeter (P) values are inherited from parent cells in this CPM.
+		// Changing V or P in this conf object thus only has an effect on the growth rate of that cellkind.
+		// If you want to change V/P, either change the inheritance in the birth() function, or modify the V/P by a specific factor
+		// through a function (for example, global variable perimeterSize, which is used within the secondDifferentiation() function).
+	
 	},
 	
 	// Simulation setup and configuration: this controls stuff like grid initialization,
@@ -652,8 +658,8 @@ let config = {
 	
 		// Cells on the grid
 		NRCELLS : [1, 0, 0, 0, 0, 0],						// Number of cells to seed for all non-background cellkinds.
-		BURNIN : 100,
-		RUNTIME : 3000,
+		BURNIN : 100,										// How long to wait after the CPM is initialized before seeding the zygote.
+		RUNTIME : 1000,										// Node.js runtime
 		RUNTIME_BROWSER : "Inf",
 		
 		// Visualization
@@ -669,8 +675,8 @@ let config = {
 		SAVEIMG : true,							// Should a png image of the grid be saved
 		// during the simulation?
 		IMGFRAMERATE : 20,							// If so, do this every <IMGFRAMERATE> MCS.
-		SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/DifferentiationEpiPre1",	// ... And save the image in this folder.
-		EXPNAME : "DifferentiationEpiPre",				// Used for the filename of output images.
+		SAVEPATH : "C:/Users/jelle/Documents/Artistoo/output/img/DifferentiationEpiPre3",	// ... And save the image in this folder.
+		EXPNAME : "DifferentiationEpiPre3",				// Used for the filename of output images.
 		
 		// Output stats etc
 		STATSOUT : { browser: false, node: true }, 	// Should stats be computed?
@@ -711,7 +717,6 @@ function toggleAnim(){
 		resetButton : resetButton,
 		weighted_random : weighted_random,
 		cellShape : cellShape,
-		cellGrowth : cellGrowth,
 		cellDivision : cellDivision,
 		newCellDivision : newCellDivision,
 		cavitation : cavitation,
@@ -741,8 +746,8 @@ function toggleAnim(){
 	sim.Cim.el.onclick = toggleAnim
 	running = true
 
-// option to draw lineages based on cellId and their daughterIds, and based on polarization
-	sim.trace_cellid = []
+	// HTML option to draw lineages based on cellId and their daughterIds, and based on polarization. 
+	// Input is defined as checkboxes or textboxes in the html page (see oninput() function).	sim.trace_cellid = []
 	sim.drawDaughterColors = false
 	sim.drawPolarColors = false
 
@@ -750,7 +755,7 @@ function toggleAnim(){
 	//step()
 //}
 
-let div_time = 0
+let div_time = 0			// Global parameter used for a minimum delay between 2-cell --> 4-cell --> 8-cell stage etc.
 
 function step(){
 	sim.step()
@@ -769,32 +774,48 @@ function initializeGrid(){
 }
 
 
-	// Define several global variables
-let old_blastomeres = 0
+
+// Define several global variables
+let old_blastomeres = 0									
 let icmDivisionArray = []
-let cavitationCount = 0, fusionCount = 0, timeCounter = 0, lineageSwitchCount = 0
+let cavitationCount = 0, fusionCount = 0, timeCounter = 0, lineageSwitchCount = 0			
 let differentiation1 = 0, differentiation2 = 0
 
 let timeLumenGrowth = 999999, fusion_time = 999999, firstDiffTime = 999999, secDiffTimeStart= 999999
 let boundaryLengthMeasurements = 0
 
+// Global_total_x variables = max allowed cells present on the grid for each kind for division functions
 let global_total_TE = 17
 let global_total_ICM =  18
-let global_total_EPI = 18
+let second_differentiationV = 12500									// Lumen volume after which second differentiation can start
+
+let prePercentage = 0.40											// % of cells with a PrE identity upon second differentiation event
+let allowedPre = Math.round(global_total_ICM * prePercentage)		// Number of PrE cells
+let allowedEpi = Math.round(global_total_ICM * (1 - prePercentage))	// Remainder of the cells is assigned the EPI identity
+
+let global_total_EPI = 18											// Max allowed cells whenever they can divide (specified in this.newCellDivision() )
 let global_total_PRE = 10
 
-let second_differentiationV = 10500
+
+
 
 /* The following custom methods will be added to the simulation object */
+// This function defines the way different processes can start, and includes several conditional statements 
+// to make sure these processes are integrated well. Tweaking the timing of these processes can be done in several ways:
+// 1) The this.C.ran() / this.C.random() conditionals can be changed.
+// 2) The time between processes can be set at a specific treshold.
+// 3) Processes can start/end whenever a specific cell number / cell volume is reached.
+// 4) Processes can start on a a specific simulation time value.
 function postMCSListener(){
 	let total_cells = this.cell_number([1, 3, 4, 5, 6])
 	let lumen_id = 0
 
+	// Initialize and fill the HTML adhesion matrix
 	if(sim.time == 0){
-		//this.htmlSymmetricalMatrix()
+		this.htmlSymmetricalMatrix()
 	}
 
-	//Prevent zygoteDivisions from throwing errors when ICM cells are added to 1 id
+	//Prevent zygoteDivisions from throwing errors when ICM cells are added to 1 id (fusion function)
 	if (cavitationCount < 1){ 
 		this.zygoteDivision()
 	}
@@ -807,24 +828,27 @@ function postMCSListener(){
 		old_blastomeres = total_cells
 	}
 
+	// Compaction and polarization start at 6 cells instead of 8, since we are dealing with a 2D cross section of a 3D process,
+	// thus you will end up with less cell numbers depicted in the simulation for each developmental stage.
 	if (total_cells == 6){
 	this.compaction()
 	}
-
 	if (total_cells >= 6){
 	this.polarization()
 	}
 
-	// Calculate cell shape for each cell
+
+	// Calculate the cell shape for each cell(defined here as the aspect ratio between the longest axis and the perpendicular, shorter axis)
 	for( let i of this.C.cellIDs() ){
-		if(this.C.cellKind(i) == 1 || this.C.cellKind(i) == 3 || this.C.cellKind(i) == 4 ){		
+		if(this.C.cellKind(i) != 2){		
 			this.cellShape(i)
 		}
 	}
 
-	// First differentiation event
-	// Loop over all cellIds, if they are polarized assign them to the TE class, if they are Apolar they become ICM
-	// Not yet polarized cells are differentiated based on their position in the embryo
+	// First differentiation event:
+	// Loop over all cellIds, if they are polarized assign them to the TE class, if they are Apolar they become ICM.
+	// Not yet polarized cells are differentiated based on their position in the embryo.
+	// Differentiation into TE or ICM is purely based on positioning within the embryo for this version of the model.
 	if (total_cells == 16 ){ //&& differentiation1 < 0
 		for( let i of this.C.cellIDs()){
 			if (this.C.cellKind(i) == 1){
@@ -850,12 +874,16 @@ function postMCSListener(){
 		firstDiffTime = sim.time
 	} 
 
-	// Cavitation can be staggered with the div_time parameter to allow cell differentiation upon formation of the 16th cell prior to lumen formation
+	// Cavitation can be staggered with the div_time parameter to allow for 
+	// cell differentiation upon formation of the 16th cell prior to lumen formation.
+	// Setting the "div_time > 50" condition to a higher value will result in a more prominent morula stage, provided the 
+	// first differentiation event is also staggered in a similar manner.
 	if (total_cells >= 16 && cavitationCount < 1 && div_time > 50){
 		this.cavitation()
 		cavitationCount++
 
-		// Collect the cellIDs of the ICM cells present on the grid for 1 round of cleavage division
+		// Collect the cellIDs of the ICM cells present on the grid for 1 round of cleavage division 
+		// (see ICM cell birth function, they inherit a higher perimeter)
 		for (let i of this.C.cellIDs()){
 			if (this.C.cellKind(i) == 4){		
 				icmDivisionArray.push(i)
@@ -863,19 +891,22 @@ function postMCSListener(){
 		}		
 	}
 
+	// Determine which cell is the lumen
 	for( let i of this.C.cellIDs() ){
 		if( this.C.cellKind(i) == 2 ){		
 			lumen_id = i
 		}
 	}
 
+	// This code block specifies the first ICM divisions, each ICM cell only divides once in this manner, since
+	// they are assigned once to the icmDivisionArray.
 	if (total_cells >= 16 && icmDivisionArray.length > 0  && this.C.cells[lumen_id].V > 200){
 		// input of this.cellDivision should be the icmDivisionArray
 		// output of this.cellDivision should be a shorter icmDivisionArray by 1
 		icmDivisionArray = this.cellDivision(icmDivisionArray)
 	}
 
-	// Lumen growth & TE/ICM cell divisions (including cell growth)
+	// Lumen growth & TE/ICM cell divisions (including TE/ICM cell growth)
 	if (total_cells >= 16 ){ 
 		this.lumenGrowth()
 
@@ -890,6 +921,8 @@ function postMCSListener(){
 	if (total_cells >= 16 && cavitationCount > 0){
 		this.newCellDivision()
 	}	
+
+	// Boundary length measurement framework to investigate the ICM-Lumen / ICM-TE boundary
 /*
 	let bltime1 = 0, bltime2 = 0, bltime3 =  0, bltime4 = 0, bltime5 = 0
 	let blIcm_TE1, blIcm_TE2, blIcm_TE3, blIcm_TE4, blIcm_TE5
@@ -961,8 +994,13 @@ function postMCSListener(){
 		this.toggleAnim()
 	} */
 
-	// Second differentiation event [ICM --> PrE or EPI]	
-	if (this.C.cells[lumen_id].V > second_differentiationV) {	// When does differentiation start
+	// Second differentiation event [ICM --> PrE or EPI]
+	// Cell fate is decided with a weighted randomized function, where in the default situation cells have equal chance to become either PrE or EPI.
+	// However, weights can be changed to make ICM cells which neighbour the lumen cell have a higher probability of differentiating into PrE,
+	// and cells that do not possess this characteristic could have an increased probability of differentiating into EPI.
+	// Also, the specific ratio of PrE / EPI cells can be determined beforehand using the global parameters allowedEPI and allowedPre, for example to prevent
+	// simulations from appearing with 90% PrE when switching to a different seed.
+	if (this.C.cells[lumen_id].V >= second_differentiationV) {	// When does differentiation start
 		if (this.C.random() < 0.1){								// How asynchroneously do cells differentiate
 			this.secondDifferentiation(lumen_id)
 			if (differentiation2 < 1){							// Record when the 1st differentiation event happens
@@ -971,11 +1009,14 @@ function postMCSListener(){
 			}
 		}	
 	}
-	// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window
-	if (sim.time >= secDiffTimeStart && this.cell_number([4]) == 0 && this.C.random() < 0.001){
-		this.lineageSwitch2(lumen_id)
+	// Remove or switch lineages for misallocated PrE/EPI cells after a specific time window.
+	// Also calculate the sorting index of the differentiated ICM.
+	if (sim.time >= secDiffTimeStart && this.cell_number([4]) == 0 && this.C.random() < 0.01){
+		//this.lineageSwitch2(lumen_id)
+		this.sortingScore()
 	}
 } 
+
 
 
 	/**
@@ -999,13 +1040,12 @@ function cell_number(cellkinds){
 
 
 
-	//let item = ["asym", "sym"], weight = [0.9, 0.1]
 	/** Randomly pick an option based on given weights
 	 * @param {Array} item - the different options (strings)
 	 * @param {Array} weight - respective weights for each option
+	 * example: let item = ["asym", "sym"], weight = [0.9, 0.1]
 	 * @return {Array} chosen item, along with its index
 	 */ 
-// Weighted random function
 function weighted_random(item, weight){
 	if (item.length != weight.length){
 		throw new Error("Item and weight should have the same size!")
@@ -1030,21 +1070,23 @@ function weighted_random(item, weight){
 	// Shuffle an array, algorithm is a Durstenfeld shuffle (modern Fisher-Yates shuffle)
 function arrayShuffle(array){
 		for (let i = array.length - 1; i >= 1; i--){
-			let j = Math.floor(this.C.random() * (i + 1));			//Math.random is not seeded!
+			let j = Math.floor(this.C.random() * (i + 1));			//Math.random is not seeded, thus always use the sim.random functions!
 			[array[i], array[j]] = [array[j], array[i]];
 		}
 		return array;
 }
 
 
-// To do:
-// fix divided cells
-	const divided_cells = []
-	// Calculate the number of largest cells, based on the amount of cleavage division stages 
-	// that have occured (exp_division).
+	// Calculate the number of largest cells, based on the amount of cleavage division stages that have occured (exp_division).
 	let exp_division = 0
 	let largest_V_slice = 2 ** exp_division
+	const divided_cells = []
 
+	// Divide the zygote into smaller blastomeres, whereby they are divided according to the largest 2 cells, 4 cells etc. 
+	// This function first constructs an array of all the large blastomeres that have not yet divided in that cleavage cycle.
+	// Then it randomly selects one blastomere from these to undergo a cleavage division.
+	// The mimimum time between cleavage divisions within a cycle depends on the random constraint, while
+	// the minimum delay between cleavage cycles depends on the div_time variable. 
 function zygoteDivision (){	
 	// add the initializer if not already there
 	if( !this.helpClasses["gm"] ){ this.addGridManipulator() }
@@ -1082,7 +1124,10 @@ function zygoteDivision (){
 
 	let total_cells = this.cell_number([1, 3, 4])
 
-	// Dividing function for cells with the largest volume, the function divides up to a predefined total cell number
+	// Dividing function for cells with the largest volume, the function divides up to a predefined total cell number,
+	// and the function waits a specific div_time between transitioning to different cell stages (4-cell, 8-cell etc.).
+	// The line this.C.random() < 0.1  serves as local minimum time interval for division, this controls the degree of synchrony between divisions
+	// at the same cell stage (for example, all cells dividing once to go from 4 to 8 cells on the grid).
 	if( total_cells < 16 && div_time >= 100){
 
 		let largest_cell_list = largest_cells.map( x => x ) 
@@ -1136,7 +1181,6 @@ function zygoteDivision (){
 	}
 }
 
-	// This iterator returns coordinates and cellid for all non-background border pixels on the grid. 
 	// This function creates an object with a key for each cell on the grid, and as
 	// corresponding value an array with all the borderpixels of that cell. 
 	// Each pixel is stored by its ArrayCoordinate.
@@ -1146,7 +1190,7 @@ function zygoteDivision (){
 function borderPixelCounter(kind){
 
 	let cellborderpixels = {}
-		
+		// Loop over the cellborderpixels and create a smaller object containing cells with cellKind == kind.		
 	for( let [arraycoord, id] of this.C.cellBorderPixels() ){
 		if (this.C.cellKind(id) == kind ){
 			if( !cellborderpixels[id] ){
@@ -1160,32 +1204,29 @@ function borderPixelCounter(kind){
 	//console.log(cellborderpixels)
 }
 
-	// Counts the number of unique background borderpixels for every cellId with cellKind == 1
-function backgroundBorderpixelCounter(cellborderpixels){
-
-	/** This function computes a list of all pixels that border on cells and belong to the background.
-		@param {CellId} cellid the unique cell id of the cell to get neighbors from.
-		@param {CellArrayObject} cellborderpixels object produced by {@link BorderPixelsByCell}, with keys for each cellid
+	/** This function computes a list of all borderpixels per cell that belong to the background.
+		@param {CellArrayObject} cellborderpixels object produced by {@link borderPixelCounter}, with keys for each cellid
 		and as corresponding value the border pixel indices of their pixels.
-		@returns {CellObject} a dictionairy with keys = neighbor cell ids, and 
-		values = number of neighbor cellpixels at the border.
+		@returns {CellObject} neigh_borderpixels - a dictionairy with keys = neighbor cell ids, and 
+		values = index of the neighbor cellpixels that belong to the background.
 	*/
+function backgroundBorderpixelCounter(cellborderpixels){
 			
 	let neigh_borderpixels = {}
 	
-	//loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel to calculate the perimeter of the cell cluster
-	//this assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
+	// Loop over all cellIds' borderpixels to identify pixels with a neighbouring background pixel to calculate the perimeter of the cell cluster/
+	// This assumes that there are no interior borderpixels within the cleavage stage that neighbour with background pixels
 	for (let cellid in cellborderpixels){
 		neigh_borderpixels[cellid] = []
 		let cbp = cellborderpixels[cellid]
 
-		//loop over border pixels of cell
+		// Loop over border pixels of a cell
 		for ( let cellpix = 0; cellpix < cbp.length; cellpix++ ) {
 
-			//get neighbouring pixels of borderpixel of cell
+			// Get neighbouring pixels of borderpixel of cell
 			let neighbours_of_borderpixel_cell = this.C.neigh( cbp[cellpix] )
 
-			//loop over neighbouring pixels and identify cellId and index belonging to neighbour pixel (ArrayCoordinate) 
+			// Loop over neighbouring pixels and identify the cellId and index belonging to neighbour pixel (ArrayCoordinate) 
 			for ( let neighborpix of neighbours_of_borderpixel_cell ) {
 				let neighbor_id = this.C.pixt( neighborpix )
 				let neigh_index = this.C.grid.p2i(neighborpix)
@@ -1202,7 +1243,11 @@ function backgroundBorderpixelCounter(cellborderpixels){
 	return neigh_borderpixels
 }
 
-// Count the total number of background pixels that border on the developing structure
+	/** This function counts the total number of borderpixels that belong to the background, as a proxy for perimeter length.
+		@param {CellArrayObject} cellborderpixels object produced by {@link backgroundBorderpixelCounter}, with keys for each cellid
+		and as corresponding value the border pixel indices of their pixels.
+		@returns {Number} perimeter - the perimeter length of the zygote.
+	*/
 function perimeterCounter(neigh_borderpixels){
 	let perimeter = 0
 
@@ -1212,10 +1257,10 @@ function perimeterCounter(neigh_borderpixels){
 	//console.log(neigh_borderpixels)
 	//console.log( sim.time + "\t" + "The number of background borderpixels making up the perimeter is:" + "\t" + perimeter)
 	return perimeter
+
 	// Writing output to text file for further visualization
 	// Time, the seed, number of cells, perimeter pixel number, adhesion to background, adhesion between blastomeres
 	//const data = String([sim.time, this.C.conf.seed, this.cell_number(), perimeter, [this.C.conf["J"][0][1]], [this.C.conf["J"][1][1]]])
-
 /*
 	fs.appendFileSync(filepath, data + "\n", 'utf8', (err) => {
 		if (err) {
@@ -1227,8 +1272,13 @@ function perimeterCounter(neigh_borderpixels){
 */
 }
 
-	// Divide ICM cells post-cavitation to incorporate a volume difference with TE cells (since blastomeres are the same size as TE)
-	// Input is an array of ICM cells
+
+	/** This function divides all ICM cells post-cavitation once without any prior growth, to incorporate a volume difference with TE cells,
+	 *  since these ICM cells become smaller than TE cells/Blastomeres. The volume difference is incorporated in the ICM cell class birth function.
+	 * 	One cell is chosen from the input array every time this function is called.
+		@param {Array} idArray - keys for each ICM cellid which should be divided without any growth before division.
+		@returns {Array} idArray - remaining keys of ICM cells that have yet to divide in this function.
+	*/
 function cellDivision(idArray){
 
 	if (this.C.random() < 0.01){
@@ -1266,75 +1316,15 @@ function cellDivision(idArray){
 }
 
 
-	// Increase the target volume and perimeter of all cells on the grid
-	// Cell divides once it has grown to 1.75-2.25x its initial size
-	// Count TE cells to be divided + total nr TE cells < Global desired number of TE cells for cell division
-
-function cellGrowth(){
-	let te_cells = this.cell_number([3]), te_cells_tbd = 0
-	for (let i of this.C.cells){
-		if (i.divisionState == "Yes"){
-			te_cells_tbd++
-		}
-	}
-
-	for (let i of this.C.cellIDs()){
-		if (typeof i === "string"){
-			i = Number(i)
-		}
-		let cell = this.C.cells[i]
-//this.C.cellKind(i) == 4 || 
-		if ((this.C.cellKind(i) == 3) && cell.avgDistortion > 4.5){
-			// An elongated cell shape increases the chance of cellgrowth and mitosis
-			let random = 0.01 * cell.avgDistortion
-			// Assign a max volume of 1.25-1.75x to each cell, as a volume target for division
-				
-			if (this.C.random() < random && cell.maxVol == 0 && (te_cells + te_cells_tbd) < global_total_TE){
-				cell.maxVol = this.C.ran(175, 225) / 100
-				cell.divisionState = "Yes"
-			}
-		}
-			if (cell.V >= (cell.maxVol * cell.initialV) && cell.maxVol > 0){
-					// Divide a cell and increase nDiv for parent and daughter cellId
-					// Also reset the maxVol and avgDistortion for each cell
-					let lastnewdiv = this.divideCell(i)
-					cell.nDiv ++
-					cell.maxVol = 0
-					cell.avgDistortion = 0
-					cell.divisionState = "No"
-
-					this.C.cells[lastnewdiv].nDiv ++
-					this.C.cells[lastnewdiv].maxVol = 0
-					this.C.cells[lastnewdiv].avgDistortion = 0
-					this.C.cells[lastnewdiv].divisionState = "No"
-
-					// Add daughter cellIds to all parent cells, by looping over the parent cell
-					// and adding the daughter ID to each one
-					for (let i = 1; i < this.C.cells[lastnewdiv].parentId.length; i++){
-						let cellid = this.C.cells[lastnewdiv].parentId[i]
-						this.C.cells[cellid].daughterId.push(lastnewdiv) 
-					}
-					console.log(sim.time + "\t" + i + "\t" + cell.V + "\t" + lastnewdiv + "\t" + sim.C.cells[lastnewdiv].V
-						+ "\t" + "Cellkind:" + "\t" + this.C.cellKind(cell.id))
-				
-
-			} else if (cell.V < (cell.maxVol * cell.initialV) && cell.maxVol > 0) {
-			// Constant increase of cell volume and perimeter based on value just after division
-			// Minimum division time is inherently included by VOLSTEP/PERSTEP percentages	
-				if (cell.V-this.C.getVolume(i) < this.C.conf["VOLCHANGE_THRESHOLD"]){
-					cell.V += cell.initialV * this.C.conf["VOLSTEP"][cell.kind]
-					cell.P += cell.initialP * this.C.conf["PERSTEP"][cell.kind]
-				} 	
-			}
-	}
-}
 
 
-	// Cellgrowth and celldivision through increasing the target volume and perimeter of cells.
+
+	// This function incorporates cellgrowth and subsequent celldivision through increasing the target volume and perimeter of cells.
 	// Being able to grow is randomly decided, in addition to customizable conditionals.
-	// Cell divides once it has grown to [a, b] * the initial size, where a < b.
+	// A cell divides once it has grown to [a, b] * the initial size, where a < b.
 	// The number of cells than can divide is specified through global variables global_total_TE, global_total_ICM etc.
 	// Note: this function is designed for the use of the birth function belonging to each class, these are reflected in the maxWeight values.
+
 
 function newCellDivision(){
 	// Count the number of cells present on the grid per kind
@@ -1377,7 +1367,9 @@ function newCellDivision(){
 				cell.maxVol = this.C.ran(175, 225) / 100
 				cell.divisionState = "Yes"
 				te_cells_tbd++
-			}	// ICM divisions stop once the differentiation into PrE/EPI has started, to prevent excesssive growth
+			}	
+				// ICM divisions stop once the differentiation into PrE/EPI has started, to prevent excesssive growth
+				// This division function waits for cellDivision() to finish their job, to make all ICM cells smaller.
 		} else if (this.C.cellKind(i) == 4 && this.C.cells[lumen_id].V > 4500 && icmDivisionArray.length == 0 && this.C.cells[lumen_id].V < second_differentiationV){		
 			let random = 0.001 * cell.avgDistortion				
 			if (this.C.random() < random && cell.maxVol == 0 && (icm_cells + icm_cells_tbd) < global_total_ICM){
@@ -1405,9 +1397,8 @@ function newCellDivision(){
 				pre_cells_tbd++
 			}
 		} */
-
+		// Cell is able to divide when their maxVol is reached
 		if (cell.maxVol != 0 && this.C.cellKind(cell.id) != 2){
-		// Cell is able to divide when maxVol is reached
 			if (cell.V >= (cell.maxVol * cell.initialV)){
 					let lastnewdiv = this.divideCell(i)
 					cell.nDiv ++
@@ -1434,13 +1425,16 @@ function newCellDivision(){
 				if (cell.V-this.C.getVolume(i) < this.C.conf["VOLCHANGE_THRESHOLD"]){
 					cell.V += cell.initialV * this.C.conf["VOLSTEP"][cell.kind]
 					cell.P += cell.initialP * this.C.conf["PERSTEP"][cell.kind]
-				} 	// this.C.cellKind(cell.id) != 4 && for ICM 1stdivision when blastocoel is formed (ICM smaller?)
+				} 
 			}
 		}	
 	}
 }
 
-	// Lumen grows every MCS by VOLSTEP / PERSTEP
+	/** This function makes the lumen cells grow by a percentage (VOLSTEP / PERSTEP) of the initially defined P/V for lumen cells.
+	 * 	Note: model is not optimzed for lumen perimeter growth, lambda_P lumen = 0
+		@param {Number} maxVol - Maximum volume that the lumen is able to reach
+	*/
 function lumenGrowth(maxVol = 12500){
 	for( let i of this.C.cellIDs() ){
 		if( this.C.cellKind(i) == 2 ){
@@ -1475,7 +1469,8 @@ function lumenGrowth(maxVol = 12500){
 function compaction(){
 	let nr_cells = this.cell_number([1])
 
-	//Change all J parameters in conf to increase compaction
+	// Change all J parameters in conf to increase compaction.
+	// This results in a lower perimeter with the background, measured with this.perimeterCounter().
 	if (nr_cells == 6) {
 		for( let i of this.C.cellIDs() ){
 			if( this.C.cellKind( i ) == 1 ){		
@@ -1493,8 +1488,9 @@ function compaction(){
 */
 }
 
-	// Loop over all unique pixel ids for each cellId and assign a polarization Yes/No value based on the localization of the cell in the embryo. 
-	// Polarization occurs gradually for the outer cells similar to asynchronous polarization in vivo
+	// This function assigns a polarization status based on the the localization of the cell in the embryo. 
+	// Polarization occurs gradually for the outer cells similar to asynchronous polarization in vivo.
+	// Inner apolar cells that are localized to the outside are able to switch their polarization status, as well as internalized polar cells.
 function polarization(){
 	let bg_borderpixels = this.backgroundBorderpixelCounter(this.borderPixelCounter(1))
 
@@ -1514,8 +1510,11 @@ function polarization(){
 	}
 }
 
-	// Reassign internalized TE cells to Apolar and change their class to ICM after a specific MCS period
-	// Output is the changed cellId
+	/** This function reassigns internalized TE cells to Apolar and changes their class to ICM after a specific MCS period
+	 * 	One cell is chosen from the input array every time this function is called.
+	 *  @param {Number} linSwitchTime - Maximum MCS that a TE cell is internalized.
+	 *  @returns {Number} cellid - id of the cell that has switched from lineage (TE --> ICM).
+	*/
 function lineageSwitch(){
 	
 	let bg_borderpixels_te = this.backgroundBorderpixelCounter(this.borderPixelCounter(3))
@@ -1536,7 +1535,13 @@ function lineageSwitch(){
 
 
 
-	// Measure the circularity of the cell shape (distortion) for each cell
+	/** This function measures the circularity of the cell shape (distortion) for each cell.
+	 * 	Cell shape is calculated as the aspect ratio (longest axis / shortest axis).
+	 * 	Output is assigned to the cell itself (.Distortion), every 50 MCS this is reset and
+	 * 	an average is calculated and saved (.avgDistortion) instead.
+	 *  This function uses the calculation of major/minor axes from the divideCell function.
+	 *  @param {Number} id - cellular id that has its shape calculated.
+	*/
 function cellShape(id){
 	let C = this.C
 	let cp = C.getStat( CPM.PixelsByCell )[id], com = C.getStat( CPM.Centroids )[id]			//CPM. since we are calling from the CELL class
@@ -1571,7 +1576,7 @@ function cellShape(id){
 	let distortion = this.C.cells[id].distortion
 	distortion.push(shape) 
 	
-	// Calculate the average distortion every 50 MCS
+	// Calculate the average distortion every 50 MCS, and assign it to the cell itself.
 	if (distortion.length == 50){
 		let avg_distortion = 0
 		for (let i of distortion){
@@ -1582,8 +1587,9 @@ function cellShape(id){
 		this.C.cells[id].distortion = []
 	}
 }
-function divideCell(id){
+
 // Standard CPM function, non-modified
+function divideCell(id){
 	let C = this.C
 	let torus = C.conf.torus.indexOf(true) >= 0
 	if( C.ndim != 2 || torus ){
@@ -1670,7 +1676,10 @@ function divideCell(id){
 }
 
 
-		//Initialize lumen formation by seeding a lumen at the morula stage
+	/** This function initializes lumen formation by seeding a lumen cell at the morula stage.
+	 * 	Possible coordinates are identified as border pixels at bicellular junctions, or multicellular junctions between atleast
+	 *  1 TE and 1 ICM cell. One random coordinate is chosen as the starting location, with equal chance for both junction types.
+	*/
 	function cavitation(){
 		let bicellular_borderpixels = [], bicellular_neighbours = []
 		let multicellular_borderpixels = [], multicellular_neighbours = []
@@ -1714,8 +1723,10 @@ function divideCell(id){
 				// the borderpixel's index coordinate as a key. 
 				let neigh_borderpixIndex = this.C.neighi(borderpixIndex)
 
-				// Loop over the array of neighbouring borderpixels located in the object.
-				// Exclude borderpixels if one of their neighbourpixels is already present somewhere in the object.
+			// Loop over the array of neighbouring borderpixels located in the object.
+			// Exclude borderpixels if one of their neighbourpixels is already present somewhere in the object.
+			// Bicellular junctions contain 2 unique cell ids, while a Multicellular junctions contain more.
+			// The following conditions also prevent the lumen from starting at a TE-TE bicellular junction. 
 				if (unique_ids.length == 2 && te_ids >= 1 && icm_ids >= 1){
 					for (let neigh_pix of neigh_borderpixIndex){
 						if( !bicellular_neighbours.includes(neigh_pix) ){
@@ -1738,7 +1749,7 @@ function divideCell(id){
 			}
 		}
 	
-		// Total seeding points: --> To do: make this scale with selecting indices?
+		// Total seeding points:
 		//console.log(bicellular_borderpixels)
 		//console.log(multicellular_borderpixels)
 		
@@ -1746,8 +1757,9 @@ function divideCell(id){
 		// The variable in the while loops indicates the number of lumens that you want to seed.
 		let seedingCoordinates = []
 		let sample, seeding_method, nr_lumen = 0
+
+	// Randomly decide between bicellular or multicellular seeding, with a 50/50 likelyhood.
 		let method = this.C.ran(0, 1)
-		
 		if (method == 0){
 			seeding_method = bicellular_borderpixels
 			//console.log("bicellular lumen")
@@ -1756,6 +1768,8 @@ function divideCell(id){
 			//console.log("multicellular lumen")
 		}
 
+	// This while loop condition determines the number of lumens that you want to seed.
+	// To do: for multiple lumens, this code will only select all bicellular junctions to draw coordinates from, or all multicellular junctions.		
 		while (nr_lumen < 1){
 			sample = this.C.ran(0, (seeding_method.length - 1))
 			seedingCoordinates.push(this.C.grid.i2p(seeding_method[sample]))
@@ -1776,12 +1790,15 @@ function divideCell(id){
 	}
 
 
-		// This function groups all ICM cells together into 1 cellId 
+	/** This function fuses all ICM cells together into 1 cellId. 
+	 * 	Can be used for measuring if the ICM is comprised of different clusters or not, and the ICM shape at the end of a simulation.
+	*/
 	function fusion(){
 		let connection = this.C.getStat(CPM.ConnectedComponentsByCell)
 		//console.log("ConnectedComponentsbyCell", connection)
 		let connection_filtered = {}
 
+		// Identify the ICM cell ids
 		let icm_cellids = []
 		for (let i of this.C.cellIDs()){
 			if (this.C.cellKind(i) == 4){
@@ -1812,7 +1829,9 @@ function divideCell(id){
 		this.C.cells[icm_id].avgDistortion = 0
 	}
 
-	// Calculate the final circularity of the embryo
+	/** This function fuses all embryonic cells together into one cell ID
+	 * 	It can be used for measuring the total embryo shape (distortion) at the end of a simulation.
+	*/
 	function fusionEmbryo(){
 		let remaining_cells = []
 		for (let i of this.C.cellIDs()){
@@ -1826,18 +1845,23 @@ function divideCell(id){
 				// Calculate volume and perimeter of the ICM cell after fusion
 				let total_V = this.C.cells[finalId].V + this.C.cells[id].V
 				let total_P = this.C.cells[finalId].P + this.C.cells[id].P
-
+			// TE cells (4) are chosen as the final cell kind, but this is an arbitrary choice.
 				this.gm.assignCellPixels(cp, 4, finalId)
 
 				this.C.cells[finalId].V = total_V
 				this.C.cells[finalId].P = total_P
 			}
 		}
+		// Shape parameters are reset to get recalculated using the disconnectedness function.	
 		this.C.cells[finalId].distortion = []
 		this.C.cells[finalId].avgDistortion = 0
 	}
 
-		// Identify if the ICM is intact at a specific point during the simulation
+	/** This function checks if the ICM is intact at a specific point during the simulation.
+	 *  Note: this function only checks the lowest id of ICM it encounters in the this.C.cellIDs() function, 
+	 *  intended to be used in combination with the fusion() function.
+	 * 	Can be used for measuring if the ICM is comprised of different clusters or not, and the ICM shape at the end of a simulation.
+	*/
 	function disconnectedness(){
 		let connection = this.C.getStat(CPM.ConnectedComponentsByCell)
 		//console.log(connection)
@@ -1868,13 +1892,11 @@ function divideCell(id){
 
 	}
 
-		// Used for subsetting an object for a specified list of keys
-		/**  
-		 * @param {Object} sourceObject - the Object that has to be subsetted
-		 * @param {Array} keys - an array of keys also present in sourceObject
-		 * @return {Object} subsetObject - sourceObject with only key : value pairs if key in keys
-		**/
-		// Input sourceObject: Object
+	/** This function is used for subsetting an object for a specified set of keys.
+	 * @param {Object} sourceObject - the Object that has to be subsetted
+	 * @param {Array} keys - an array of keys also present in sourceObject
+	 * @return {Object} subsetObject - sourceObject with only key : value pairs if key in keys
+	**/
 	function objectSubsetter(sourceObject, keys){
 		const newObject = {}
 		keys.forEach(key => {newObject[key] = sourceObject[key]})
@@ -1882,12 +1904,15 @@ function divideCell(id){
 	}
 
 
-	// Calculate the boundary length between the ICM - TE and the ICM - lumen
+	/** This function calculates the boundary length between the ICM - TE and the ICM - lumen
+	@returns {Array} ICM_boundary_TE_value, ICM_boundary_lumen_value - the numeric length of boundaries
+	*/
 	function boundaryLength(){
 		let icm_id = [], te_id = [], lumen_id
 		let boundaryObject = this.C.getStat(CPM.CellNeighborList)
 		//console.log(boundaryObject)
 
+		// Obtain arrays of cellids for all present celltypes	
 		for (let cell of this.C.cellIDs()){		
 			if (this.C.cellKind(cell) == 4){
 				icm_id.push(cell)
@@ -1934,22 +1959,32 @@ function divideCell(id){
 	}	
 
 
-// Differentiate ICM cells into PrE or EPI, based on a weighted random function, where
-// the weights are influenced by their localization in the blastocyst. ICM cells localized next to the
-// blastocoel side have a higher chance of differentiating into PrE.
+	/** This function differentiates ICM cells into PrE or EPI, based on a weighted random function, where
+	 *  the weights are influenced by their localization in the blastocyst. For example: ICM cells localized next to the
+	 *  blastocoel side could have a higher chance of differentiating into PrE, and internalized ICM cells into EPI.
+	 * 
+	 *  Note: this function currently uses several global parameters: perimeterSize, allowedEpi, allowedPre,
+	 *  and differentiation weights are specified in the function itself (input for the this.weighted_random() function).
+	 * 
+	 *  @param {Number} lumen_id - Cell id belonging to the 1 lumen cell.
+	**/
+
+	let perimeterSize = 1.5				// Multiplier for perimeter of EPI / PrE cells after differentiation, to improve cell sorting (used in secondDifferentiation)
 function secondDifferentiation(lumen_id){
-	let icmIds = [], newId
+	let icmIds = [], newId, newIdInt
 	for (let i of this.C.cellIDs()){
 		if( this.C.cellKind(i) == 4){		
 			icmIds.push(i)
 		}
 	}
-	// Only differentiate 1 random ICM cell if there are some left	
+	// Only differentiate 1 random ICM cell provided there are some left	
+	// Conversions into PrE/EPI can only occur if the allowed percentage of cells has not yet been reached (see:allowedPre & allowedEpi).
 	if (icmIds.length > 0){
 		icmIds = this.arrayShuffle(icmIds)
 		let tbd_cell = icmIds[0]
 		//console.log("icmids:", icmIds, "tbd=", tbd_cell)
-		// Filter for specific ICM cell boundary only and check for lumen cell boundary
+
+		// Filter for specific ICM cell boundary only and check for the presence of a lumen cell boundary
 		let boundaryObject = this.C.getStat(CPM.CellNeighborList)
 		let tbd_cell_boundary = {}
 		let tbd_cell_boundary_ids = []
@@ -1962,19 +1997,42 @@ function secondDifferentiation(lumen_id){
 			}	
 		}
 		//console.log("tbd_cell_boundary_ids", tbd_cell_boundary_ids)
-		// If the chosen cell is next to the lumen it has a higher chance of differentiating into PrE 
+
+		// If the chosen cell is next to the lumen it could have a higher chance of differentiating into PrE (specified in weighted_random input)
 		if (tbd_cell_boundary_ids.includes(lumen_id)){	
-			//newId = this.weighted_random(["5", "6"], [25, 75])
-			newId = this.weighted_random(["5", "6"], [0, 100])
-
+			//newId = this.weighted_random(["5", "6"], [40, 60])
+			//newId = this.weighted_random(["5", "6"], [0, 100])
+			newId = this.weighted_random(["5", "6"], [50, 50])
+			newIdInt = parseInt(newId[0])
 			//console.log(newId, "includes lumen")
-			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
 
-		} else {
-			//newId = this.weighted_random(["5", "6"], [75, 25])
-			newId = this.weighted_random(["5", "6"], [100, 0])			
+			// Prevent more cells from showing up than that are allowed based on predefined epi/pre ratio and ICM cell number
+			if (this.cell_number([6]) == allowedPre){	
+				newIdInt = 5
+			} else if (this.cell_number([5]) == allowedEpi){
+				newIdInt = 6
+			}
+			this.C.cells[tbd_cell].newCellID(tbd_cell, newIdInt)	
+			// Include increased perimeter for these EPI/PrE cells
+			this.C.cells[tbd_cell].P = perimeterSize * this.C.cells[tbd_cell].P 
+		} 	
+		// If the chosen cell is not next to the lumen it could have a higher chance of differentiating into EPI 
+		else {
+			//newId = this.weighted_random(["5", "6"], [60, 40])
+			//newId = this.weighted_random(["5", "6"], [100, 0])
+			newId = this.weighted_random(["5", "6"], [50, 50])		
+			newIdInt = parseInt(newId[0])
 			//console.log(newId, "does not include lumen")
-			this.C.cells[tbd_cell].newCellID(tbd_cell, parseInt(newId[0]))	
+
+			// Prevent more cells from showing up than that are allowed based on set epi/pre ratio and set ICM cell number
+			if (this.cell_number([6]) == allowedPre){	
+				newIdInt = 5
+			} else if (this.cell_number([5]) == allowedEpi){
+				newIdInt = 6
+			}
+			this.C.cells[tbd_cell].newCellID(tbd_cell, newIdInt)	
+			// Include increased perimeter for these EPI/PrE cells
+			this.C.cells[tbd_cell].P = perimeterSize * this.C.cells[tbd_cell].P 
 
 		}
 	}
@@ -1982,27 +2040,28 @@ function secondDifferentiation(lumen_id){
 
 
 
-// Lineage switch for PrE into EPI cells or vice versa [Lineage plasticity].
-// Cells are selected after a specific amount of time of being surrounded by other celltype(s).
-// To do: also include the option of apoptosis
+	/** This function implements a lineage switch for PrE into EPI cells or vice versa [Lineage plasticity].
+	 *  Cells are selected after a specific amount of time of being surrounded by other celltype(s).
+	 * 	Meant for cluster formation within the former ICM / cells that take too long to sort out
+	 * To do: also include the option of apoptosis
+	 * Note: this function has not been used in the final Report / Simulations.
+	 * 
+	 *  @param {Number} lumen_id - Cell id belonging to the 1 lumen cell.
+	**/
+
 function lineageSwitch2(lumen_id) {
-	// Get a specific cell that is internalized wrongly
-	// pre cells/epi cells close to the lumen will automatically sort out
-	// This  is meant for cluster formation within the former ICM / cells that take too long to sort out
-	//tbd_cell_boundary = objectSubsetter(boundaryObject, [tbd_cell])
-// Loop over the cells and identify isolated cells (could be clusters? of two/three)
-/* options wrong:
+/* Several options wrongly allocated cells:
 - PrE nested in the TE in the middle of epi
 - EPI engulfing a single/multiple PrE
 - PrE engulfing a single EPI cell
 - Line of Pre from lumen to TE separating EPI from another cluster of EPI
 */
-	let preIds = [], epiIds = [], teIds = []
-	let pre_cell_boundaries = {}, epi_cell_boundaries = {}
-	let uniqueNeighbours 
-	// Identify PrE cell ids
+	let preIds = [], epiIds = [], teIds = [], randomPre = [], neighbourPrE = []
+	let pre_cell_boundaries = {}, epi_cell_boundaries = {}, randomPreInterface = {}
+	let uniqueNeighbours
+	// Identify and save TE, EPI, PrE cell ids to an array
 	for (let i of this.C.cellIDs()){
-		if(this.C.cellKind(i) == 4){	
+		if(this.C.cellKind(i) == 3){	
 			teIds.push(i)
 		} else if(this.C.cellKind(i) == 5){		
 			epiIds.push(i)
@@ -2012,21 +2071,20 @@ function lineageSwitch2(lumen_id) {
 	}
 		// Get all interacting cells + their boundary lengths for each cell id on the grid
 	let boundaryObject = this.C.getStat(CPM.CellNeighborList)
-	console.log(boundaryObject)
+	//console.log(boundaryObject)
 	for (const [key, value] of Object.entries(boundaryObject)){
 
 		// Check celltype of selected cell's neighbours to define specific actions - Only investigate Epi/PrE cells	
 		if (epiIds.includes(key) || preIds.includes(key)){
-				console.log("1st for loop key:", key, "value:", value)
-
+			//console.log("1st for loop key:", key, "value:", value)
 
 			uniqueNeighbours = Object.keys(value).length
 			let interfaceTE = 0, interfaceEPI = 0, interfacePrE = 0, interfaceLumen = 0
 
 			for (const [cellid, length] of Object.entries(value)){
-				console.log("2nd for loop key:", cellid, "value:", length)
+				//console.log("2nd for loop key:", cellid, "value:", length)
 
-			// Count nr of interfaces per cellkind for each PrE or EPI cell
+			// Count the number of interfaces per cellkind for each PrE or EPI cell
 				if (teIds.includes(cellid)){
 					interfaceTE++
 				} else if (epiIds.includes(cellid)){	
@@ -2036,28 +2094,71 @@ function lineageSwitch2(lumen_id) {
 				} else if (cellid == lumen_id){	
 					interfaceLumen++
 				}
-			} 	console.log("interfaces:", interfaceTE, interfaceEPI, interfacePrE, interfaceLumen)
+			} 	
+			//console.log("interfaces:", interfaceTE, interfaceEPI, interfacePrE, interfaceLumen)
 
-			// Add action for specific combination of interfaces based on key of cell being investigated
-			// EPI cells:
+	// Add action for specific combination of interfaces based on key of cell being investigated
+			// Lineage switch for single misallocated EPI cells:
 		/*	if (epiIds.includes(key) && interfaceEPI == 0){
 				this.C.cells[key].newCellID(key, 6)
 				console.log("Converted cellid:", key, " from celltype Epi to PrE" )
 			}
-		*/		
-			// PrE cells:
+			
+			// Lineage switch for single misallocated PrE cells:
 			if (preIds.includes(key) && interfacePrE == 0){
 				this.C.cells[key].newCellID(key, 5)
 				console.log("Converted cellid:", key, " from celltype PrE to Epi" )
-
 			}
-
-			// PrE / EPI clusters that are multiple cells
+*/
 		}	
 	}
+//To do: implement conversions of these PrE cell clusters
 
-// Is this biological?????
+	// Misallocated PrE clusters consisting of multiple cells are also converted to EPI
+	// Select a random PrE cell, identify unique neighbouring PrE cells and add these to an array.
+	// Continue until no more unique PrE neighbours can be found, then check if this is equal to the total number of PrE cells,
+	// if this is not the case, several clusters are present and some of these cells could be converted.
+	randomPre.push(this.arrayShuffle(preIds)[0])
+
+	neighbourPrE.push(randomPre[0])
+	console.log("pre cell id:", randomPre)
+	console.log("neighbourpre:", neighbourPrE )
+
+	randomPreInterface = objectSubsetter(boundaryObject, neighbourPrE)
+	console.log("pre cell id boundary cells:", randomPreInterface)
+
+	let multiCellularCounter = 0
+	while (multiCellularCounter < 1){
+		for (const [key, value] of Object.entries(randomPreInterface)){
+			//console.log("cluster pre - 1st for loop key:", key, "value:", value)
+			
+			// loop over the neighbouring cells
+			for (const [cellid, length] of Object.entries(value)){
+				//console.log("cluster pre - 2nd for loop key:", cellid, "value:", length)
+				
+				// identify unique neighbouring PrE cells and save them to the array
+				if (!neighbourPrE.includes(cellid) && preIds.includes(cellid)){
+					neighbourPrE.push(cellid)
+					//console.log("neighbourpre:", neighbourPrE )
+					
+					// Add the unique neighbour to the boundary object to check for more neighbours
+					randomPreInterface = objectSubsetter(boundaryObject, neighbourPrE)
+					//console.log("pre cell id boundary cells:", randomPreInterface)
+
+					// reset the while loop Counter to check out the new boundary cells
+					multiCellularCounter--
+				}
+			}
+		}
+		multiCellularCounter++
+	}	 
+	let uniqueCellsPreInterface  = neighbourPrE.length
+	let preConnectedness = uniqueCellsPreInterface / preIds.length
+	console.log(sim.time, "uniqueCellsPreInterface:", uniqueCellsPreInterface, "total pre:", preIds.length,
+	"connectedness percentage:", preConnectedness)
 }
+
+
 
 
 
@@ -2154,6 +2255,7 @@ function changePolarColor(){
 	}
 }
 
+// To do: does not work yet!
 function resetButton(){
     sim.C.reset()
     const canvas = document.querySelector('canvas');
