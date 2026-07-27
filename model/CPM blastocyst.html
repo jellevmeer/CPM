@@ -141,15 +141,15 @@ class Blastomeres extends CPM.Cell {
 		let V = parent.V
 		let P = parent.P
 
-		let maxPercentageDev = 5
-		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)
+		let maxPercentageDev = 5										// Maximum allowed deviation in volume/perimeter between cels (%)
+		let delta_VP = (this.C.ran(0, maxPercentageDev * 10) / 1000)    // randomly generated allowed deviation in volume/perimeter between cels (%) (0-max allowed deviation)
 		//let delta_VP = (maxPercentageDev) / 100
 		let vol_dev = (delta_VP * V/2)
 		let per_dev = (P * 0.70 * delta_VP)
-		let j = this.C.ran(0, 1)
+		let j = this.C.ran(0, 1)										// Either parent or daughter cell grows bigger
 
 		// Randomly select one of the new cells to grow bigger, resulting in the other cell becoming smaller
-		// with an allowed deviation of maxPercentageDev.
+		// with an allowed deviation of vol_dev or per_dev).
 		if (j == 0){
 			this.V = Math.round(V / 2 + vol_dev)
 			this.initialV = Math.round(V / 2 + vol_dev)
@@ -194,9 +194,8 @@ class Blastomeres extends CPM.Cell {
 			id = Number(id)
 		}
 		let cell = this.C.cells[id]
-		
-		//Object.assign(this.C.cells[id], object)
-		//structuredClone(this.C.cells[id], object)
+
+		// Save cell parameters to add back after coverting the cellkind.
 		let object = {P: cell.P, Polarized: cell.Polarized, V: cell.V, avgDistortion: cell.avgDistortion,
 			daughterId: cell.daughterId, distortion: cell.distortion, initialP: cell.initialP,
 			initialV: cell.initialV, maxVol: cell.maxVol, nDiv: cell.nDiv, parentId: cell.parentId
@@ -213,7 +212,7 @@ class Blastomeres extends CPM.Cell {
 		this.C.cells[id].daughterId = object.daughterId, this.C.cells[id].parentId = object.parentId, this.C.cells[id].distortion = object.distortion, 
 		this.C.cells[id].initialP = object.initialP, this.C.cells[id].initialV = object.initialV, this.C.cells[id].maxVol = object.maxVol, this.C.cells[id].nDiv = object.nDiv
 		
-		// Add an identifier for a modified perimeter inheritance, if blastomeres are differentiated into ICM cells.
+		// Add an identifier for a modified perimeter inheritance, in case the blastomeres are differentiated into ICM cells.
 		if (kind == 4){
 			this.C.cells[id].recentlyConverted = "Yes"
 		}
@@ -1055,12 +1054,13 @@ function cell_number(cellkinds){
 	return nr_cells
 }
 
-	/** Randomly pick an option based on given weights
+	/** This function randomly picks an option based on given weights.
 	 * @param {Array} item - the different options (strings)
 	 * @param {Array} weight - respective weights for each option
 	 * example: let item = ["asym", "sym"], weight = [0.9, 0.1]
 	 * @return {Array} chosen item, along with its index
 	 */ 
+	// The code for this function was obtained from https://trekhleb.medium.com/weighted-random-in-javascript-4748ab3a1500
 function weighted_random(item, weight){
 	if (item.length != weight.length){
 		throw new Error("Item and weight should have the same size!")
@@ -1083,6 +1083,7 @@ function weighted_random(item, weight){
 }
 
 	// Shuffle an array, algorithm is a Durstenfeld shuffle (modern Fisher-Yates shuffle)
+	// The code for this function was taken from https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#JavaScript_implementation
 function arrayShuffle(array){
 		for (let i = array.length - 1; i >= 1; i--){
 			let j = Math.floor(this.C.random() * (i + 1));			//Math.random is not seeded!
@@ -1281,9 +1282,10 @@ function perimeterCounter(neigh_borderpixels){
 		@param {Array} idArray - keys for each ICM cellid which should be divided without any growth before division.
 		@returns {Array} idArray - remaining keys of ICM cells that have yet to divide in this function.
 	*/
-function cellDivision(idArray){
+	let pCellDivIcm1 = 0.01
 
-	if (this.C.random() < 0.01){
+function cellDivision(idArray){
+	if (this.C.random() < pCellDivIcm1){
 		//console.log("these are the ICM cells still able to divide pre-shuffle:", idArray)
 		idArray = this.arrayShuffle(idArray)
 		let id = idArray[0]
@@ -2512,6 +2514,7 @@ function storeInput(){
  
 <h1>Human Zygote to Blastocyst Development</h1> <hr>
 <p>A CPM containing a zygote undergoing cleavage divisions, cavitation and two distinct differentiation events.
+<br>Various cell types are modelled	here: blastomeres are black, ICM is orange, TE is purple, EPI is green, PrE is pink and the lumen is blue.
 <br>Author: Jelle van Meer, 2026 (MSc Internship - Mulder Lab)
 </p>
 <p>
