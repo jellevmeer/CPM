@@ -7,7 +7,7 @@ This project uses the Artistoo library for their base CPM structure, and many of
 The model is dependent on various parameters, and their effect on the blastocyst development can be studied visually,
 or with an output function in a Node.js script. This CPM was constructed as part of a six month MSc internship.
 
-The model is available as an HTML file, or as a Node.js script, which allows for more in depth parameter sweeping.
+The model is available as an [HTML file](https://github.com/jellevmeer/CPM/blob/main/model/CPM%20blastocyst.html), or as a Node.js script, which allows for more in depth parameter sweeping.
 
 A multithreaded approach to run several Nodejs simulations simulataneously has also been established for parameter optimization. These approaches are available for measuring boundary lengths between ICM-Trophectoderm & ICM-Lumen, but also to quantify cell sorting between EPI and PrE.
 
